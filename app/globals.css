@@ -1,0 +1,174 @@
+/* GLOBALNE STYLE */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #fff;
+  color: #0D1F40;
+}
+
+/* LINKI */
+a {
+  color: #0D1F40;
+  text-decoration: none;
+}
+
+a.btn,
+button {
+  background: #0D1F40;
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+a.btn:hover,
+button:hover {
+  background: #002B5B;
+}
+
+/* NAVBAR */
+.navbar {
+  background: #f6f6f6;
+  border-bottom: 1px solid #ddd;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navbar ul {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+}
+
+/* HERO SECTION */
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  align-items: center;
+  padding: 3rem 1rem;
+  background: #fff;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+}
+
+.hero-text h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #0D1F40;
+}
+
+.hero img {
+  max-width: 450px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* CTA BUTTON */
+.cta-button {
+  display: inline-block;
+  background: #0D1F40;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+/* IKONY */
+.icons,
+.features {
+  display: flex;
+  gap: 2rem;
+  margin-top: 2rem;
+  justify-content: center;
+}
+
+.icons div,
+.features div {
+  text-align: center;
+  color: #0D1F40;
+}
+
+.icons img,
+.features img {
+  width: 36px;
+  height: 36px;
+  filter: brightness(0) saturate(100%) invert(9%) sepia(38%) saturate(1417%) hue-rotate(184deg) brightness(96%) contrast(100%);
+}
+
+/* SZUKAJKA */
+.search,
+.search-bar {
+  display: flex;
+  gap: 1rem;
+  margin: 2rem 0;
+  flex-wrap: wrap;
+}
+
+.search select,
+.search input,
+.search-bar select,
+.search-bar input {
+  flex: 1 1 40%;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #ccc;
+}
+
+/* KARTY */
+.cards,
+.specialists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2rem;
+  margin-top: 3rem;
+}
+
+.card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  text-align: center;
+  color: #0D1F40;
+}
+
+.card img {
+  width: 100%;
+  border-radius: 0.5rem;
+  object-fit: cover;
+  margin-bottom: 1rem;
+}
+
+/* CTA BOXES */
+.cta-grid {
+  display: flex;
+  gap: 2rem;
+  margin-top: 3rem;
+  flex-wrap: wrap;
+}
+
+.cta-box {
+  background: #f4f8ff;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  flex: 1 1 400px;
+  color: #0D1F40;
+}
+
+.section {
+  padding: 3rem 1rem;
+  background: #f9f9f9;
+}
+
+.main-content {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
