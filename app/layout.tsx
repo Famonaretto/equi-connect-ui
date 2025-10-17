@@ -4,6 +4,8 @@ import Image from 'next/image';
 import RootLayoutClient from './components/RootLayoutClient';
 import { UserProvider } from '@/contexts/UserContext';
 import { DialogProvider } from './components/DialogProvider';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+
 
 
 export const metadata = {
