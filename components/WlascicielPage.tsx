@@ -25,7 +25,6 @@ import {
 import { app, db } from '@/lib/firebase';
 import ListaZgloszenDlaUzytkownika from './ListaZgloszenDlaUzytkownika';
 import KalendarzPage from '@/components/KalendarzPage';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { QuerySnapshot, DocumentData, DocumentChange } from 'firebase/firestore';
 import { useCalendarCounter, resetCalendarSubstatuses } from "@/components/CalendarCounter";
 import {  addDoc } from "firebase/firestore";

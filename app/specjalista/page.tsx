@@ -10,7 +10,6 @@ import specializations from '@/utils/specializations';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useDialog } from '../components/DialogProvider';
 import KalendarzPage from '@/components/KalendarzPage';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { resetCalendarSubstatuses,  useCalendarCounter } from '@/components/CalendarCounter';
 import { useRouter } from "next/navigation";
 import { handleOpenChat } from "@/utils/chatUtils";
