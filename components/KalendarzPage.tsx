@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import moment from 'moment';
 import "moment/locale/pl"; 
-import 'react-big-calendar/lib/css/react-big-calendar.css';
 import {
   getFirestore,
   collection,
