@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import ChatBox from '@/components/ChatBox'
 
-// Nie używamy żadnego importu typu PageProps — ignorujemy go całkowicie
-export default async function Page({
-  params,
-}: {
-  params: { chatId: string }
-}) {
+type Props = {
+  params: {
+    chatId: string
+  }
+}
+
+const Page = async ({ params }: Props) => {
   return (
     <div style={{ padding: '16px', width: '100%' }}>
       <div style={{ marginBottom: '12px' }}>
@@ -18,3 +19,5 @@ export default async function Page({
     </div>
   )
 }
+
+export default Page
