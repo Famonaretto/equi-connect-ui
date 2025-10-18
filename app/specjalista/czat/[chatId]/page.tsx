@@ -1,15 +1,12 @@
-import ChatBox from '@/components/ChatBox'
 import Link from 'next/link'
-import { type Metadata } from 'next'
+import ChatBox from '@/components/ChatBox'
 
-// ✅ Metadane opcjonalnie
-export const metadata: Metadata = {
-  title: 'Czat ze specjalistą',
-}
-
-// ✅ Główna funkcja
-export default async function SpecialistChatPage({ params }: { params: { chatId: string } }) {
-
+// Nie używamy żadnego importu typu PageProps — ignorujemy go całkowicie
+export default async function Page({
+  params,
+}: {
+  params: { chatId: string }
+}) {
   return (
     <div style={{ padding: '16px', width: '100%' }}>
       <div style={{ marginBottom: '12px' }}>
