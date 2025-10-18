@@ -1,17 +1,14 @@
-// ⛔ Usuń: 'use client'
-
 import ChatBox from '@/components/ChatBox'
 import Link from 'next/link'
+import { type Metadata } from 'next'
 
-// ✅ Zdefiniuj typ PageProps
-type PageProps = {
-  params: {
-    chatId: string
-  }
+// ✅ Metadane opcjonalnie
+export const metadata: Metadata = {
+  title: 'Czat ze specjalistą',
 }
 
-// ✅ Użyj poprawnego typu i funkcji
-export default function SpecialistChatPage({ params }: PageProps) {
+// ✅ Główna funkcja
+export default function SpecialistChatPage({ params }: { params: { chatId: string } }) {
   return (
     <div style={{ padding: '16px', width: '100%' }}>
       <div style={{ marginBottom: '12px' }}>
