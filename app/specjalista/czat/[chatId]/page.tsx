@@ -8,7 +8,8 @@ export const metadata: Metadata = {
 }
 
 // ✅ Główna funkcja
-export default function SpecialistChatPage({ params }: { params: { chatId: string } }) {
+export default async function SpecialistChatPage({ params }: { params: { chatId: string } }) {
+
   return (
     <div style={{ padding: '16px', width: '100%' }}>
       <div style={{ marginBottom: '12px' }}>
