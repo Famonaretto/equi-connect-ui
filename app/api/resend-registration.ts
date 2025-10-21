@@ -33,7 +33,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const url = `${process.env.NEXT_PUBLIC_BASE_URL}/aktywuj?email=${encodeURIComponent(email)}&token=${token}`;
 
-    await sendCustomEmailLink(email, url); // helper do wysyłki linku
+    await sendCustomEmailLink(
+  email,
+  url,
+  'Aktywacja konta',
+  'Kliknij w link, aby aktywować swoje konto.'
+);
+ // helper do wysyłki linku
 
     return res.status(200).json({ message: '📩 Wysłano ponownie link aktywacyjny.' });
   } catch (err: any) {

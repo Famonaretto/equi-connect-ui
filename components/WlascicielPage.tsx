@@ -34,7 +34,8 @@ import ChatSidebar from './ChatSidebar';
 import ChatBox from './ChatBox';
 import dynamic from 'next/dynamic';
 import ProfilKoniaForm from '@/app/wlasciciele/profilKonia/ProfilKoniaForm';
-import OcenaZachowaniaPage from '@/app/ankieta/page';
+import OcenaZachowaniaPage from '@/components/OcenaZachowaniaPage';
+
 import ListaOcenKonia from './ListaOcenKonia';
 import SzczegolyOcenyKonia from './SzczegolyOcenyKonia';
 import UmowioneKonsultacje from './UmowioneKonsultacje';
