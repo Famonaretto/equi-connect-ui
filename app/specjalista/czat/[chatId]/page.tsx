@@ -1,22 +1,20 @@
-import Link from 'next/link'
-import ChatBox from '@/components/ChatBox'
-import { JSX } from 'react'
+import ChatBox from '@/components/ChatBox';
+import Link from 'next/link';
 
-const Page = async ({ params }: { params: { chatId: string } }) => {
-  return (
-    <div style={{ padding: '16px', width: '100%' }}>
-      <div style={{ marginBottom: '12px' }}>
-        <Link
-          href="/specjalista?tab=czat"
-          style={{ color: '#002F6C', fontWeight: 'bold' }}
-        >
-          ← Wróć do listy czatów
-        </Link>
-      </div>
-      <ChatBox chatId={params.chatId} role="specjalista" />
-    </div>
-  )
+interface Props {
+  params: Promise<{ chatId: string }>;
 }
 
-// 👇 TO JEST KLUCZOWE: wymuszenie typu
-export default Page as unknown as (props: { params: { chatId: string } }) => Promise<JSX.Element>
+export default async function Page({ params }: Props) {
+  const { chatId } = await params;
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <Link href="/specjalista?tab=czat" style={{ color: '#002F6C', fontWeight: 'bold' }}>
+        ← Wróć do listy czatów
+      </Link>
+      <ChatBox chatId={chatId} role="specjalista" />
+    </div>
+  );
+}
+

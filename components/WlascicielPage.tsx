@@ -39,7 +39,7 @@ import OcenaZachowaniaPage from '@/components/OcenaZachowaniaPage';
 import ListaOcenKonia from './ListaOcenKonia';
 import SzczegolyOcenyKonia from './SzczegolyOcenyKonia';
 import UmowioneKonsultacje from './UmowioneKonsultacje';
-import ZaleceniaKoniaPage from '@/app/zaleceniaLista/[id]/page';
+import ZaleceniaKoniaClient from '@/app/zaleceniaLista/[id]/ZaleceniaKoniaClient';
 import ListaZgloszenWlasciciela from './ListaZgloszenWlasciciela';
 
 
@@ -806,10 +806,11 @@ case 'edytujProfilKonia':
         return <><h2>Anulowane konsultacje</h2><p>Lista odwołanych konsultacji.</p></>;
 case 'zalecenia':
   return (
-    <ZaleceniaKoniaPage
-      horseId={selectedHorseId!}         // 🔑 przekazujemy id konia
-      onBack={() => setActiveTab('mojeKonie')}
-    />
+<ZaleceniaKoniaClient
+  id={selectedHorseId!}
+  onBack={() => setActiveTab('mojeKonie')}
+/>
+
   );
 
 case 'oferty':
