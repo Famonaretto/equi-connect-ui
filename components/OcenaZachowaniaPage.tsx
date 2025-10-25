@@ -48,6 +48,7 @@ const categoryOrder = [
 
 const behaviorColorMap: Record<string, 'red' | 'yellow' | 'green'> = {
   // Podczas karmienia
+  'Agresywny tylko do ludzi (atakuje lub straszy osobę karmiacą)': 'red',
   'Agresywny do ludzi i koni (straszy lub próbuje ugryźć)': 'red',
   'Agresywny tylko do koni (atakuje inne konie)': 'red',
   'Niecierpliwy (kopie przednią nogą, wierci się po boksie)': 'yellow',
@@ -281,6 +282,9 @@ type OcenaZachowaniaPageProps = {
 
 export default function OcenaZachowaniaPage({ horseId, onBack }: OcenaZachowaniaPageProps) {
 const [horseName, setHorseName] = useState<string>("");
+const [horseBreed, setHorseBreed] = useState<string>("");
+const [horseBirthYear, setHorseBirthYear] = useState<string>('');
+const [horseSex, setHorseSex] = useState<string>("");
 
 useEffect(() => {
   if (horseId) {
@@ -439,12 +443,16 @@ try {
   let newHorseId = horseId;
 
   if (!newHorseId) {
-    const newHorseRef = await addDoc(collection(db, "konie"), {
-      imie: horseName || "Koń bez imienia",
-      status: "nowy",
-      ownerUid: ownerUid,
-      createdAt: serverTimestamp(),
-    });
+const newHorseRef = await addDoc(collection(db, "konie"), {
+  imie: horseName.trim(),
+  rasa: horseBreed || null,
+  rokUrodzenia: horseBirthYear || null,
+  plec: horseSex || null,
+  status: "nowy",
+  ownerUid: ownerUid,
+  createdAt: serverTimestamp(),
+});
+
 
     newHorseId = newHorseRef.id;
     await showDialog("📌 Dodano nowego konia.");
@@ -884,6 +892,7 @@ const sections = [
 
     <h4>• Podczas karmienia (jednokrotny wybór)</h4>
     {checkboxList([
+      'Agresywny tylko do ludzi (atakuje lub straszy osobę karmiącą)',      
       'Agresywny do ludzi i koni (straszy lub próbuje ugryźć)',
       'Agresywny tylko do koni (atakuje inne konie)',
       'Niecierpliwy (kopie przednią nogą, wierci się po boksie)',
@@ -1102,26 +1111,106 @@ const sections = [
   omawiające je w wybranych sytuacjach.
     </p>
 
-<label>
-  Imię konia:{' '}
-  <input
-    type="text"
-    name="imie_konia"
-    value={horseName}
-    onChange={(e) => {
-      // ręczne wpisanie działa TYLKO jeśli nie ma horseId
-      if (!horseId) {
-        setHorseName(e.target.value);
-      }
-    }}
-    readOnly={!!horseId}   // z profilu konia pole jest tylko do odczytu
-    style={{
-      marginLeft: '1rem',
-      background: horseId ? "#f9f9f9" : "white",
-      border: "1px solid #ccc"
-    }}
-  />
-</label>
+<p style={{ fontStyle: 'italic', color: '#666', marginBottom: '1rem' }}>
+  <span style={{ color: 'red' }}>*</span> Pola obowiązkowe
+</p>
+
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: '1fr',
+    gap: '1.5rem',
+    maxWidth: '800px',
+  }}
+  className="form-grid"
+>
+  {/* Imię */}
+  <label style={{ display: 'flex', flexDirection: 'column' }}>
+    <strong>Imię konia <span style={{ color: 'red' }}>*</span></strong>
+    <input
+      type="text"
+      name="imie_konia"
+      value={horseName}
+      onChange={(e) => !horseId && setHorseName(e.target.value)}
+      readOnly={!!horseId}
+      required
+      style={{
+        marginTop: '0.4rem',
+        background: horseId ? "#f9f9f9" : "white",
+        border: "1px solid #ccc",
+        borderRadius: '6px',
+        padding: '0.6rem'
+      }}
+    />
+  </label>
+
+  {/* Rasa */}
+  <label style={{ display: 'flex', flexDirection: 'column' }}>
+    <strong>Rasa <span style={{ color: 'red' }}>*</span></strong>
+    <select
+      value={horseBreed}
+      onChange={(e) => setHorseBreed(e.target.value)}
+      required
+      style={{
+        marginTop: '0.4rem',
+        padding: '0.6rem',
+        border: '1px solid #ccc',
+        borderRadius: '6px',
+      }}
+    >
+      <option value="">-- wybierz rasę --</option>
+      <option value="SP">SP (szlachetna półkrew)</option>
+      <option value="xx">Thoroughbred (pełnej krwi)</option>
+      <option value="arab">Koń arabski</option>
+      <option value="haflinger">Haflinger</option>
+      <option value="ślązak">Ślązak</option>
+      <option value="inna">Inna</option>
+    </select>
+  </label>
+
+  {/* Rok urodzenia */}
+  <label style={{ display: 'flex', flexDirection: 'column' }}>
+    <strong>Rok urodzenia <span style={{ color: 'red' }}>*</span></strong>
+    <input
+      type="number"
+      value={horseBirthYear}
+      onChange={(e) => setHorseBirthYear(e.target.value)}
+      required
+      min="1900"
+      max={new Date().getFullYear()}
+      placeholder="np. 2015"
+      style={{
+        marginTop: '0.4rem',
+        padding: '0.6rem',
+        border: '1px solid #ccc',
+        borderRadius: '6px'
+      }}
+    />
+  </label>
+
+  {/* Płeć */}
+  <label style={{ display: 'flex', flexDirection: 'column' }}>
+    <strong>Płeć <span style={{ color: 'red' }}>*</span></strong>
+    <select
+      value={horseSex}
+      onChange={(e) => setHorseSex(e.target.value)}
+      required
+      style={{
+        marginTop: '0.4rem',
+        padding: '0.6rem',
+        border: '1px solid #ccc',
+        borderRadius: '6px',
+      }}
+    >
+      <option value="">-- wybierz --</option>
+      <option value="klacz">Klacz</option>
+      <option value="ogier">Ogier</option>
+      <option value="wałach">Wałach</option>
+    </select>
+  </label>
+</div>
+
+
 
 
     <br />
@@ -1154,15 +1243,14 @@ const sections = [
 </span>
 
 {currentStep < sections.length - 1 ? (
-  <button
-    type="button"
-    onClick={() => {
-      // 🟢 Walidacja imienia konia
-      if (!horseName.trim()) {
-        setModalMessage("⚠️ Podaj imię konia, aby kontynuować.");
-        setShowModal(true);
-        return;
-      }
+<button
+  type="button"
+  onClick={async () => {
+    if (!horseName.trim() || !horseBreed || !horseBirthYear) {
+      await showDialog("⚠️ Uzupełnij obowiązkowe pola: imię, rasa i rok urodzenia.");
+      return;
+    }
+
 
       if (checkStepCompletion(currentStep)) {
         const nextStep = currentStep + 1;
@@ -1482,20 +1570,7 @@ onClick={() => {
       >
         OK
       </button>
-      <button
-  style={{ marginTop: '1rem', padding: '0.5rem 1rem' }}
-  onClick={async () => {
-    const res = await fetch('/api/resend-registration', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    await showDialog(data.message || 'Wysłano link ponownie.');
-  }}
->
-  Wyślij link weryfikacyjny ponownie
-</button>
+      
     </div>
   </div>
 )}

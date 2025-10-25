@@ -10,7 +10,9 @@ import { DialogProvider } from './components/DialogProvider';
 export const metadata = {
   title: 'EquiConnect – Zrozum swojego konia',
   description: 'Pomóż swojemu koniowi znaleźć wsparcie i opiekę.',
+  viewport: 'width=device-width, initial-scale=1', // ← TO DODAJ
 };
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -106,7 +108,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </header>
 
           {/* ZAWARTOŚĆ STRONY */}
-          <main>{children}</main>
+          <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
+  {children}
+</main>
+
 
           {/* STOPKA */}
           <footer
