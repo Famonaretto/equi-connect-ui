@@ -6,7 +6,7 @@ import Image from 'next/image';
 import RootLayoutClient from './components/RootLayoutClient';
 import { UserProvider } from '@/contexts/UserContext';
 import { DialogProvider } from './components/DialogProvider';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export const metadata = {
   title: 'EquiConnect – Zrozum swojego konia',
@@ -16,6 +16,16 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   return (
     <html lang="pl">
@@ -23,16 +33,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <DialogProvider>
           <UserProvider>
-            {/* === HEADER === */}
             <header className="main-header">
               <div className="top-bar">
                 <Link href="/">
                   <Image
                     src="/images/logo.png"
                     alt="EquiConnect logo"
-                    width={100}
-                    height={100}
-                    style={{ objectFit: 'contain' }}
+                    width={80}
+                    height={80}
+                    className="logo"
                   />
                 </Link>
 
@@ -42,16 +51,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <RootLayoutClient />
                 </div>
 
-                <button
-                  className="hamburger"
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                >
-                  ☰
-                </button>
+                {isMobile && (
+                  <button
+                    className="hamburger"
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  >
+                    ☰
+                  </button>
+                )}
               </div>
 
-              {/* MENU GŁÓWNE */}
-              <nav className={`main-nav ${isMenuOpen ? 'open' : ''}`}>
+              <nav className={`main-nav ${isMobile ? 'mobile' : ''} ${isMenuOpen ? 'open' : ''}`}>
                 <Link href="/">Strona główna</Link>
                 <Link href="/ankieta">Ocena zachowania konia</Link>
                 <Link href="/znajdz">Znajdź specjalistę</Link>
@@ -61,12 +71,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </nav>
             </header>
 
-            {/* === ZAWARTOŚĆ STRONY === */}
             <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
               {children}
             </main>
 
-            {/* === STOPKA === */}
             <footer
               style={{
                 backgroundColor: '#f1f1f1',
