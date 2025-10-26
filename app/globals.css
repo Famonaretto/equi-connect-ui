@@ -108,3 +108,70 @@ nav a {
     font-size: 1rem;
   }
 }
+.main-header {
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  padding: 1rem;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.site-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #0D1F40;
+  flex: 1;
+  text-align: center;
+  margin: 0;
+}
+
+.user-panel {
+  min-width: 120px;
+  text-align: right;
+}
+
+.hamburger {
+  display: none;
+  background: none;
+  font-size: 2rem;
+  border: none;
+  cursor: pointer;
+}
+
+/* Navigation */
+.main-nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  margin-top: 1rem;
+}
+
+.main-nav a {
+  text-decoration: none;
+  color: #0D1F40;
+  font-weight: 500;
+}
+
+/* Responsive navigation */
+@media (max-width: 768px) {
+  .main-nav {
+    flex-direction: column;
+    align-items: center;
+    display: none;
+  }
+
+  .main-nav.open {
+    display: flex;
+  }
+
+  .hamburger {
+    display: block;
+  }
+}
