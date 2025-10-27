@@ -1,4 +1,5 @@
-import './globals.css';
+// NIE używaj 'use client' tutaj — layout.tsx to komponent serwerowy
+import '../globals.css';
 import { UserProvider } from '@/contexts/UserContext';
 import Header from '@/components/Header';
 import { DialogProvider } from './components/DialogProvider';
@@ -50,19 +51,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                 <div style={{ minWidth: '200px' }}>
                   <h4 style={{ fontWeight: 'bold', marginBottom: '1rem' }}>Informacje</h4>
-                  <p><a href="#">Sponsorzy i reklamodawcy</a></p>
-                  <p><a href="#">O nas</a></p>
-                  <p><a href="#">Płatności</a></p>
-                  <p><a href="#">FAQ</a></p>
-                  <p><a href="/polityka-prywatnosci">Polityka prywatności i regulaminy</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>Sponsorzy i reklamodawcy</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>O nas</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>Płatności</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>FAQ</a></p>
+                  <p><a href="/polityka-prywatnosci" style={{ color: '#0D1F40', textDecoration: 'none' }}>Polityka prywatności i regulaminy</a></p>
                 </div>
 
                 <div style={{ minWidth: '200px' }}>
                   <h4 style={{ fontWeight: 'bold', marginBottom: '1rem' }}>Menu</h4>
-                  <p><a href="#specjalisci">Dla specjalistów</a></p>
-                  <p><a href="#wlasciciele">Dla właścicieli koni</a></p>
-                  <p><a href="#wydarzenia">Wydarzenia</a></p>
-                  <p><a href="#blog">Blog</a></p>
+                  <p><a href="#specjalisci" style={{ color: '#0D1F40', textDecoration: 'none' }}>Dla specjalistów</a></p>
+                  <p><a href="#wlasciciele" style={{ color: '#0D1F40', textDecoration: 'none' }}>Dla właścicieli koni</a></p>
+                  <p><a href="#wydarzenia" style={{ color: '#0D1F40', textDecoration: 'none' }}>Wydarzenia</a></p>
+                  <p><a href="#blog" style={{ color: '#0D1F40', textDecoration: 'none' }}>Blog</a></p>
                 </div>
               </div>
 
