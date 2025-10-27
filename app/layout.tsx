@@ -1,4 +1,4 @@
-import '../globals.css';
+import './globals.css';
 import { UserProvider } from '@/contexts/UserContext';
 import Header from '@/components/Header';
 import { DialogProvider } from './components/DialogProvider';
