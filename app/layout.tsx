@@ -1,22 +1,62 @@
 import './globals.css';
+import Link from 'next/link';
+import Image from 'next/image';
 import { UserProvider } from '@/contexts/UserContext';
-import Header from '@/components/Header';
+import { useState } from 'react';
 import { DialogProvider } from './components/DialogProvider';
 
-export const metadata = {
-  title: 'EquiConnect – Zrozum swojego konia',
-  description: 'Pomóż swojemu koniowi znaleźć wsparcie i opiekę.',
-  viewport: 'width=device-width, initial-scale=1',
-};
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <html lang="pl">
+      <head>
+        <title>EquiConnect – Zrozum swojego konia</title>
+        <meta name="description" content="Pomóż swojemu koniowi znaleźć wsparcie i opiekę." />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+
       <body>
         <DialogProvider>
           <UserProvider>
-            <Header />
+            {/* === HEADER === */}
+            <header className="main-header">
+              <div className="top-bar">
+                <Link href="/">
+                  <Image
+                    src="/images/logo.png"
+                    alt="EquiConnect logo"
+                    width={100}
+                    height={100}
+                    style={{ objectFit: 'contain' }}
+                  />
+                </Link>
 
+                <h1 className="site-title">Eki 360 – Łączymy się dla Koni</h1>
+
+                <div className="user-panel">
+                  {/* Komponent klienta (logowanie etc.) */}
+                </div>
+
+                <button
+                  className="hamburger"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                >
+                  ☰
+                </button>
+              </div>
+
+              <nav className={`main-nav ${isMenuOpen ? 'open' : ''}`}>
+                <Link href="/">Strona główna</Link>
+                <Link href="/ankieta">Ocena zachowania konia</Link>
+                <Link href="/znajdz">Znajdź specjalistę</Link>
+                <Link href="/zgloszenia/lista">Zgłoszenia właścicieli koni</Link>
+                <Link href="/wydarzenia">Wydarzenia</Link>
+                <Link href="/blog">Blog</Link>
+              </nav>
+            </header>
+
+            {/* === ZAWARTOŚĆ STRONY === */}
             <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem' }}>
               {children}
             </main>
@@ -50,19 +90,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
                 <div style={{ minWidth: '200px' }}>
                   <h4 style={{ fontWeight: 'bold', marginBottom: '1rem' }}>Informacje</h4>
-                  <p><a href="#">Sponsorzy i reklamodawcy</a></p>
-                  <p><a href="#">O nas</a></p>
-                  <p><a href="#">Płatności</a></p>
-                  <p><a href="#">FAQ</a></p>
-                  <p><a href="/polityka-prywatnosci">Polityka prywatności i regulaminy</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>Sponsorzy i reklamodawcy</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>O nas</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>Płatności</a></p>
+                  <p><a href="#" style={{ color: '#0D1F40', textDecoration: 'none' }}>FAQ</a></p>
+                  <p><a href="/polityka-prywatnosci" style={{ color: '#0D1F40', textDecoration: 'none' }}>Polityka prywatności i regulaminy</a></p>
                 </div>
 
                 <div style={{ minWidth: '200px' }}>
                   <h4 style={{ fontWeight: 'bold', marginBottom: '1rem' }}>Menu</h4>
-                  <p><a href="#specjalisci">Dla specjalistów</a></p>
-                  <p><a href="#wlasciciele">Dla właścicieli koni</a></p>
-                  <p><a href="#wydarzenia">Wydarzenia</a></p>
-                  <p><a href="#blog">Blog</a></p>
+                  <p><a href="#specjalisci" style={{ color: '#0D1F40', textDecoration: 'none' }}>Dla specjalistów</a></p>
+                  <p><a href="#wlasciciele" style={{ color: '#0D1F40', textDecoration: 'none' }}>Dla właścicieli koni</a></p>
+                  <p><a href="#wydarzenia" style={{ color: '#0D1F40', textDecoration: 'none' }}>Wydarzenia</a></p>
+                  <p><a href="#blog" style={{ color: '#0D1F40', textDecoration: 'none' }}>Blog</a></p>
                 </div>
               </div>
 
