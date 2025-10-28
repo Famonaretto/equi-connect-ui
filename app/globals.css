@@ -82,12 +82,13 @@ html, body {
 }
 
 .main-nav a {
-  font-weight: 500;
-  font-size: 1.1rem;
+  font-weight: 600;
+  font-size: 1.25rem;
   color: #0D1F40;
   text-decoration: none;
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
 }
+
 
 /* ========== MEDIA QUERIES: MOBILE ========== */
 @media (max-width: 768px) {

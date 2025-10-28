@@ -14,142 +14,93 @@ export default function Home() {
     <>
     
 
-      {/* SEKCJA HERO */}
-      <section
-        style={{
-          backgroundImage: 'url("/images/elisa-photography-gjk_RegDTrM-unsplash.jpg")',
-          backgroundSize: 'cover',
-          backgroundPosition: 'left',
-          backgroundRepeat: 'no-repeat',
-          position: 'relative',
-          padding: '1rem 1rem 2rem',
-        }}
-      >
-        {/* GRADIENT W PRAWO */}
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: '60%',
-            background: 'linear-gradient(to right, rgba(255,255,255,0.2), white 70%)',
-            zIndex: 1,
-          }}
-        />
-
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 2,
-            maxWidth: '1100px',
-            margin: '0 auto',
-            color: '#0D1F40',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-          }}
-        >
-<h1
+      {/* SEKCJA HERO — obraz po lewej, treść po prawej */}
+<section
   style={{
-    fontSize: '2.2rem',
-    fontWeight: 'bold',
-    marginRight: '-0.3rem', // 🔹 przesuwa w lewo (automatycznie)
-    marginBottom: '2rem'
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    padding: '2rem 1rem',
+    maxWidth: '1100px',
+    margin: '0 auto',
+    gap: '2rem',
   }}
 >
-  Czy Twój koń potrzebuje wsparcia?
-</h1>
+  {/* Obraz po lewej */}
+  <div style={{ flex: '1 1 400px', textAlign: 'center' }}>
+    <img
+      src="/images/elisa-photography-gjk_RegDTrM-unsplash.jpg"
+      alt="Koń"
+      style={{
+        width: '100%',
+        height: 'auto',
+        borderRadius: '1rem',
+        maxHeight: '400px',
+        objectFit: 'cover',
+      }}
+    />
+  </div>
 
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '1.5rem',
-            }}
-          >
-<Link
-  href="/ankieta"
-  style={{
-    backgroundColor: '#0D1F40',
-    color: 'white',
-    fontWeight: 'bold',
-    padding: '1rem 2rem',
-    borderRadius: '0.5rem',
-    fontSize: '1.2rem',
-    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.2)',
-    marginLeft: '1rem',
-    marginBottom: '0.8rem',
-    textDecoration: 'none',
-  }}
->
-  Zrób test sprawdzający zachowania Twojego konia
-</Link>
+  {/* Tekst i przycisk po prawej */}
+  <div style={{ flex: '1 1 500px', color: '#0D1F40' }}>
+    <h1 style={{ fontSize: '2.2rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>
+      Czy Twój koń potrzebuje wsparcia?
+    </h1>
 
+    <Link
+      href="/ankieta"
+      style={{
+        backgroundColor: '#0D1F40',
+        color: 'white',
+        fontWeight: 'bold',
+        padding: '1rem 2rem',
+        borderRadius: '0.5rem',
+        fontSize: '1.2rem',
+        textDecoration: 'none',
+        display: 'inline-block',
+        marginBottom: '2rem',
+      }}
+    >
+      Zrób test sprawdzający zachowania Twojego konia
+    </Link>
 
-            
-            {/* IKONY */}
-            <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center' }}>
-              
-              <div style={{ textAlign: 'center', color: '#0D1F40' }}>
-                <img
-                  src="/images/star.svg"
-                  alt="Ocena"
-                  width={36}
-                  height={36}
-                  style={{
-                    filter: 'invert(11%) sepia(31%) saturate(1715%) hue-rotate(183deg) brightness(96%) contrast(102%)',
-                  }}
-                />
-                <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
-                  Oceń zachowanie<br />konia
-                </p>
-              </div>
+    {/* IKONY */}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem' }}>
+      {/* Ikona 1 */}
+      <div style={{ textAlign: 'center' }}>
+        <img src="/images/star.svg" alt="Ocena" width={36} />
+        <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
+          Oceń zachowanie<br />konia
+        </p>
+      </div>
 
-              
-              <div style={{ textAlign: 'center', color: '#0D1F40' }}>
-                <img
-                  src="/images/magnifying-glass.svg"
-                  alt="Szukaj"
-                  width={36}
-                  height={36}
-                  style={{ filter: 'invert(11%) sepia(31%) saturate(1715%) hue-rotate(183deg) brightness(96%) contrast(102%)' }}
-                />
-                <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
-                  Znajdź <br />specjalistę
-                </p>
-              </div>
+      {/* Ikona 2 */}
+      <div style={{ textAlign: 'center' }}>
+        <img src="/images/magnifying-glass.svg" alt="Szukaj" width={36} />
+        <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
+          Znajdź<br />specjalistę
+        </p>
+      </div>
 
-              <div style={{ textAlign: 'center', color: '#0D1F40' }}>
-                <img
-                  src="/images/check-fat.svg"
-                  alt="Check"
-                  width={36}
-                  height={36}
-                  style={{ filter: 'invert(11%) sepia(31%) saturate(1715%) hue-rotate(183deg) brightness(96%) contrast(102%)' }}
-                />
-                <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
-                  Rozwiąż problemy<br />behawioralne
-                </p>
-              </div>
+      {/* Ikona 3 */}
+      <div style={{ textAlign: 'center' }}>
+        <img src="/images/check-fat.svg" alt="Check" width={36} />
+        <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
+          Rozwiąż problemy<br />behawioralne
+        </p>
+      </div>
 
-              <div style={{ textAlign: 'center', color: '#0D1F40' }}>
-                <img
-                  src="/images/heart.svg"
-                  alt="Heart"
-                  width={36}
-                  height={36}
-                  style={{ filter: 'invert(11%) sepia(31%) saturate(1715%) hue-rotate(183deg) brightness(96%) contrast(102%)' }}
-                />
-                <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
-                  Buduj lepszą<br />relację
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Ikona 4 */}
+      <div style={{ textAlign: 'center' }}>
+        <img src="/images/heart.svg" alt="Heart" width={36} />
+        <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>
+          Buduj lepszą<br />relację
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 
       <section
   style={{
