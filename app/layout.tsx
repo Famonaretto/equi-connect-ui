@@ -1,4 +1,5 @@
 import '../app/globals.css'; // Poprawiona ścieżka
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { UserProvider } from '@/contexts/UserContext';
 import Header from '@/components/Header';
 import { DialogProvider } from './components/DialogProvider';
