@@ -28,19 +28,28 @@ export default function Home() {
   }}
 >
   {/* Obraz po lewej */}
-  <div style={{ flex: '1 1 400px', textAlign: 'center' }}>
-    <img
-      src="/images/elisa-photography-gjk_RegDTrM-unsplash.jpg"
-      alt="Koń"
-      style={{
-        width: '100%',
-        height: 'auto',
-        borderRadius: '1rem',
-        maxHeight: '400px',
-        objectFit: 'cover',
-      }}
-    />
-  </div>
+<div
+  style={{
+    flex: '1 1 400px',
+    textAlign: 'center',
+    height: '400px',           // wysokość wycinka
+    overflow: 'hidden',        // ukryj nadmiar
+    position: 'relative',
+    borderRadius: '1rem',
+  }}
+>
+  <img
+    src="/images/elisa-photography-gjk_RegDTrM-unsplash.jpg"
+    alt="Koń"
+    style={{
+      width: '100%',
+      position: 'absolute',
+      top: '-33.33%',          // przesunięcie w górę o ~2/6 (czyli pokazujemy środek)
+      left: 0,
+    }}
+  />
+</div>
+
 
   {/* Tekst i przycisk po prawej */}
   <div style={{ flex: '1 1 500px', color: '#0D1F40' }}>
