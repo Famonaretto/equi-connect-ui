@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
@@ -7,6 +8,7 @@ export default function UserPanelLink() {
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
+
     if (stored) {
       try {
         setUser(JSON.parse(stored));
@@ -24,11 +26,15 @@ export default function UserPanelLink() {
     <Link
       href={href}
       style={{
-        color: '#0D1F40',
+        backgroundColor: '#0D1F40',
+        color: 'white',
+        padding: '0.6rem 1.2rem',
+        borderRadius: '0.5rem',
         fontWeight: 'bold',
         textDecoration: 'none',
-        marginRight: '1rem',
-        fontSize: '1rem',
+        fontSize: '0.9rem',
+        whiteSpace: 'nowrap',
+        display: 'inline-block',
       }}
     >
       Mój panel

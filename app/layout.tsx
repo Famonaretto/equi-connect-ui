@@ -1,4 +1,4 @@
-import '../app/globals.css'; // Poprawiona ścieżka
+import '../app/globals.css';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { UserProvider } from '@/contexts/UserContext';
 import Header from '@/components/Header';
@@ -7,7 +7,11 @@ import { DialogProvider } from './components/DialogProvider';
 export const metadata = {
   title: 'EquiConnect – Zrozum swojego konia',
   description: 'Pomóż swojemu koniowi znaleźć wsparcie i opiekę.',
-  viewport: 'width=device-width, initial-scale=1',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +26,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </main>
 
-            {/* === STOPKA === */}
             <footer
               style={{
                 backgroundColor: '#f1f1f1',
