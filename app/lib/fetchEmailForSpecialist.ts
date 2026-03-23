@@ -1,4 +1,3 @@
-// app/lib/fetchEmailForSpecialist.ts
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 
@@ -6,18 +5,23 @@ export async function fetchEmailForSpecialist(name: string): Promise<string> {
   const db = getFirestore(app);
   const snapshot = await getDocs(collection(db, 'users'));
 
-  for (const doc of snapshot.docs) {
-    const data = doc.data();
+  const normalizedTarget = name.trim().toLowerCase();
+
+  for (const docSnap of snapshot.docs) {
+    const data = docSnap.data();
     const specialist = data.roles?.specjalista;
 
     if (specialist && specialist.enabled) {
-      const fullName = `${specialist.firstName} ${specialist.lastName}`.trim();
+      const fullName = `${specialist.firstName || ''} ${specialist.lastName || ''}`.trim().toLowerCase();
 
-      if (fullName.toLowerCase() === name.toLowerCase()) {
-        return data.email;
+      console.log('Szukam:', normalizedTarget, 'sprawdzam:', fullName);
+
+      if (fullName === normalizedTarget) {
+        if (data.email) return data.email;
+        break;
       }
     }
   }
 
-  throw new Error('Nie znaleziono e-maila dla podanego specjalisty');
+  throw new Error(`Nie znaleziono e-maila dla specjalisty: ${name}`);
 }

@@ -8,6 +8,9 @@ import { getSpecialistsFromFirestore, Specialist } from '@/app/listaSpec/specjal
 import { useSearchParams, useRouter } from 'next/navigation';
 import minRatingOptions from '@/utils/minRatingOptions';
 import maxPriceOptions from '@/utils/maxPriceOptions';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { app } from '@/lib/firebase';
 
 
 type FormState = {
@@ -24,6 +27,7 @@ export default function ZnajdzClient() {
   const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   // Sprawdzanie rozmiaru ekranu
   useEffect(() => {
@@ -159,6 +163,45 @@ export default function ZnajdzClient() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
+
+
+//sprawdzanie roli - przycisk umów konsultację
+useEffect(() => {
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      setUserRole(null);
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+
+        if (data.roles?.specjalista?.enabled) {
+          setUserRole('specjalista');
+        } else if (data.roles?.wlasciciel?.enabled) {
+          setUserRole('wlasciciel');
+        } else {
+          setUserRole(null);
+        }
+      } else {
+        setUserRole(null);
+      }
+    } catch (error) {
+      console.error('Błąd przy pobieraniu roli użytkownika:', error);
+      setUserRole(null);
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
+
 
   // Checkboxy
   const handleCheckboxChange = (value: string, group: keyof FormState) => {
@@ -681,22 +724,27 @@ export default function ZnajdzClient() {
                 gap: '1rem', 
                 marginTop: '1rem' 
               }}>
-                <Link href={`/konsultacja/umow?specjalista=${encodeURIComponent(spec.name)}`} style={{ width: isMobile ? '100%' : 'auto' }}>
-                  <button
-                    style={{
-                      backgroundColor: '#0D1F40',
-                      color: '#fff',
-                      padding: '0.75rem 1.5rem',
-                      border: '2px solid #0D1F40',
-                      borderRadius: '0.5rem',
-                      cursor: 'pointer',
-                      fontSize: isMobile ? '0.95rem' : '1rem',
-                      width: isMobile ? '100%' : 'auto',
-                    }}
-                  >
-                    Umów konsultację
-                  </button>
-                </Link>
+{userRole !== 'specjalista' && (
+  <Link
+    href={`/konsultacja/umow?specjalista=${encodeURIComponent(spec.name)}`}
+    style={{ width: isMobile ? '100%' : 'auto' }}
+  >
+    <button
+      style={{
+        backgroundColor: '#0D1F40',
+        color: '#fff',
+        padding: '0.75rem 1.5rem',
+        border: '2px solid #0D1F40',
+        borderRadius: '0.5rem',
+        cursor: 'pointer',
+        fontSize: isMobile ? '0.95rem' : '1rem',
+        width: isMobile ? '100%' : 'auto',
+      }}
+    >
+      Umów konsultację
+    </button>
+  </Link>
+)}
 
                 <Link
                   href={{

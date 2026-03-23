@@ -12,10 +12,75 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+
+// Komponent potwierdzenia
+function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel }: {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2000,
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '2rem',
+        borderRadius: '1rem',
+        maxWidth: '400px',
+        width: '90%',
+      }}>
+        <h3 style={{ marginBottom: '1rem', color: '#0D1F40' }}>{title}</h3>
+        <p style={{ marginBottom: '1.5rem' }}>{message}</p>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#ccc',
+              border: 'none',
+              borderRadius: '0.3rem',
+              cursor: 'pointer',
+            }}
+          >
+            Anuluj
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#c00',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.3rem',
+              cursor: 'pointer',
+            }}
+          >
+            Usuń
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface ChatSidebarProps {
   role: "wlasciciel" | "specjalista";
@@ -33,6 +98,8 @@ export default function ChatSidebar({
   const [chats, setChats] = useState<any[]>([]);
   const [userUid, setUserUid] = useState<string | null>(null);
   const [userDetails, setUserDetails] = useState<Record<string, any>>({});
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const router = useRouter();
 
   const normalizeRole = (r: string) => {
@@ -164,6 +231,42 @@ export default function ChatSidebar({
     }
   };
 
+  // 👉 Usuwanie czatu
+  const handleDeleteChat = async (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation(); // Zapobiega wybraniu czatu
+    setChatToDelete(chatId);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!chatToDelete) return;
+
+    try {
+      // Usuń czat z Firestore
+      await deleteDoc(doc(db, "czaty", chatToDelete));
+      
+      // Aktualizuj lokalny stan
+      setChats((prev) => prev.filter((c) => c.id !== chatToDelete));
+      
+      // Jeśli usunięty czat był aktywny, odznacz go
+      if (activeChatId === chatToDelete && onSelectChat) {
+        onSelectChat(""); // lub null, zależnie od implementacji
+      }
+
+      // Aktualizuj licznik nieprzeczytanych
+      if (onUnreadCountChange) {
+        const newCount = chats.filter(c => c.id !== chatToDelete && c.hasUnread).length;
+        onUnreadCountChange(newCount);
+      }
+
+      setShowConfirmDialog(false);
+      setChatToDelete(null);
+    } catch (error) {
+      console.error("Błąd podczas usuwania czatu:", error);
+      alert("Nie udało się usunąć czatu. Spróbuj ponownie.");
+    }
+  };
+
   // 🔹 Pobieranie szczegółów rozmówców
   useEffect(() => {
     const fetchDetails = async () => {
@@ -200,75 +303,140 @@ export default function ChatSidebar({
   }, [chats]);
 
   return (
-    <div style={{ padding: "16px" }}>
-      <h3>
+    <div style={{ padding: "16px", height: "100%", display: "flex", flexDirection: "column" }}>
+      <h3 style={{ marginBottom: "16px" }}>
         Twoje czaty ({role === "wlasciciel" ? "Właściciel" : "Specjalista"})
       </h3>
-      {chats.length === 0 && <p>Brak rozpoczętych czatów</p>}
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {userUid &&
-          chats.map((chat) => {
-            const isActive = chat.id === activeChatId;
+      
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {chats.length === 0 && <p>Brak rozpoczętych czatów</p>}
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {userUid &&
+            chats.map((chat) => {
+              const isActive = chat.id === activeChatId;
 
-            let dataZgloszenia: string | null = null;
-            if (chat.dataZgloszenia instanceof Timestamp) {
-              dataZgloszenia = chat.dataZgloszenia
-                .toDate()
-                .toLocaleDateString();
-            } else if (typeof chat.dataZgloszenia === "string") {
-              dataZgloszenia = new Date(
-                chat.dataZgloszenia
-              ).toLocaleDateString();
-            }
+              let dataZgloszenia: string | null = null;
+              if (chat.dataZgloszenia instanceof Timestamp) {
+                dataZgloszenia = chat.dataZgloszenia
+                  .toDate()
+                  .toLocaleDateString();
+              } else if (typeof chat.dataZgloszenia === "string") {
+                dataZgloszenia = new Date(
+                  chat.dataZgloszenia
+                ).toLocaleDateString();
+              }
 
-            const other =
-              Array.isArray(chat.participants) && chat.participants.length > 0
-                ? chat.participants.find((p: any) => p.uid !== userUid)
-                : null;
+              const other =
+                Array.isArray(chat.participants) && chat.participants.length > 0
+                  ? chat.participants.find((p: any) => p.uid !== userUid)
+                  : null;
 
-            return (
-              <li
-                key={chat.id}
-                onClick={() => handleClick(chat)}
-                style={{
-                  cursor: "pointer",
-                  marginBottom: "8px",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  backgroundColor: "#f9f9f9",
-                  color: isActive ? "#0D1F40" : "black",
-                  border: isActive ? "2px solid #0D1F40" : "1px solid #ddd",
-                }}
-              >
-                <div>
-                  <strong>Temat:</strong> {chat.temat || "Bez tematu"}
-                  {chat.hasUnread && (
-                    <span style={{ color: "red", marginLeft: "6px" }}>❗</span>
-                  )}
-                </div>
-                <small>Data zgłoszenia: {dataZgloszenia || "—"}</small>
-                <br />
-                {other ? (
-                  <small>
-                    {userDetails[other.uid] ? (
-                      <>
-                        {userDetails[other.uid].firstName}{" "}
-                        {userDetails[other.uid].lastName} –{" "}
-                        {userDetails[other.uid].role}
-                      </>
+              return (
+                <li
+                  key={chat.id}
+                  style={{
+                    cursor: "pointer",
+                    marginBottom: "8px",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    backgroundColor: "#f9f9f9",
+                    color: isActive ? "#0D1F40" : "black",
+                    border: isActive ? "2px solid #0D1F40" : "1px solid #ddd",
+                    position: "relative",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f0f0f0";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f9f9f9";
+                    }
+                  }}
+                >
+                  <div 
+                    onClick={() => handleClick(chat)}
+                    style={{ flex: 1 }}
+                  >
+                    <div>
+                      <strong>Temat:</strong> {chat.temat || "Bez tematu"}
+                      {chat.hasUnread && (
+                        <span style={{ color: "red", marginLeft: "6px" }}>❗</span>
+                      )}
+                    </div>
+                    <small>Data zgłoszenia: {dataZgloszenia || "—"}</small>
+                    <br />
+                    {other ? (
+                      <small>
+                        {userDetails[other.uid] ? (
+                          <>
+                            {userDetails[other.uid].firstName}{" "}
+                            {userDetails[other.uid].lastName} –{" "}
+                            {userDetails[other.uid].role}
+                          </>
+                        ) : (
+                          <>{other.uid} – uczestnik</>
+                        )}
+                      </small>
                     ) : (
-                      <>{other.uid} – uczestnik</>
+                      <small style={{ color: "#999" }}>
+                        <em>Brak danych rozmówcy</em>
+                      </small>
                     )}
-                  </small>
-                ) : (
-                  <small style={{ color: "#999" }}>
-                    <em>Brak danych rozmówcy</em>
-                  </small>
-                )}
-              </li>
-            );
-          })}
-      </ul>
+                  </div>
+                  
+                  {/* Przycisk usuwania */}
+                  <button
+                    onClick={(e) => handleDeleteChat(e, chat.id)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#999",
+                      fontSize: "1.2rem",
+                      cursor: "pointer",
+                      padding: "0.5rem",
+                      borderRadius: "50%",
+                      width: "32px",
+                      height: "32px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "background-color 0.2s, color 0.2s",
+                      marginLeft: "8px",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#fee";
+                      e.currentTarget.style.color = "#c00";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#999";
+                    }}
+                    title="Usuń konwersację"
+                  >
+                    🗑️
+                  </button>
+                </li>
+              );
+            })}
+        </ul>
+      </div>
+
+      {/* Dialog potwierdzenia usunięcia */}
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        title="Usuń konwersację"
+        message="Czy na pewno chcesz usunąć tę konwersację? Tej operacji nie można cofnąć, a wszystkie wiadomości zostaną trwale usunięte."
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setShowConfirmDialog(false);
+          setChatToDelete(null);
+        }}
+      />
     </div>
   );
 }
