@@ -23,15 +23,24 @@ type SpecialistProfile = {
   avatarUrl?: string; 
   kosztyDojazdu?: string;
   czasTrwania?: string;
+  collaborators?: string[];
 };
 
+type CollaboratorProfile = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  specialization?: string[];
+  avatarUrl?: string;
+};
 
 export default function PublicSpecialistProfilePage() {
   const params = useParams();
   const id = params?.id as string;
 
-  const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<SpecialistProfile | null>(null);
+const [loading, setLoading] = useState(true);
+const [profile, setProfile] = useState<SpecialistProfile | null>(null);
+const [collaborators, setCollaborators] = useState<CollaboratorProfile[]>([]);
 
   const searchParams = useSearchParams();
 
@@ -55,30 +64,64 @@ if (filters.maxPrice) query.append('maxPrice', filters.maxPrice);
 const backLink = `/znajdz?${query.toString()}`; // ✅ działa
 
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const db = getFirestore(app);
-        const docRef = doc(db, 'profile', id);
-        const docSnap = await getDoc(docRef);
+useEffect(() => {
+  const fetchProfile = async () => {
+    try {
+      const db = getFirestore(app);
+      const docRef = doc(db, 'profile', id);
+      const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as SpecialistProfile);
-        } else {
-          setProfile(null);
-        }
-      } catch (error) {
-        console.error('Błąd pobierania profilu:', error);
+      if (!docSnap.exists()) {
         setProfile(null);
-      } finally {
-        setLoading(false);
+        setCollaborators([]);
+        return;
       }
-    };
 
-    if (id) {
-      fetchProfile();
+      const profileData = docSnap.data() as SpecialistProfile;
+      setProfile(profileData);
+
+      if (profileData.collaborators?.length) {
+const collaboratorPromises: Promise<CollaboratorProfile | null>[] =
+  profileData.collaborators.map(async (collabId): Promise<CollaboratorProfile | null> => {
+    const collabRef = doc(db, 'profile', collabId);
+    const collabSnap = await getDoc(collabRef);
+
+    if (!collabSnap.exists()) return null;
+
+    const collabData = collabSnap.data() as SpecialistProfile;
+
+    return {
+      id: collabId,
+      firstName: collabData.firstName,
+      lastName: collabData.lastName,
+      specialization: collabData.specialization,
+      avatarUrl: collabData.avatarUrl,
+    };
+  });
+
+        const collaboratorResults = await Promise.all(collaboratorPromises);
+
+        setCollaborators(
+          collaboratorResults.filter(
+            (item): item is CollaboratorProfile => item !== null
+          )
+        );
+      } else {
+        setCollaborators([]);
+      }
+    } catch (error) {
+      console.error('Błąd pobierania profilu:', error);
+      setProfile(null);
+      setCollaborators([]);
+    } finally {
+      setLoading(false);
     }
-  }, [id]);
+  };
+
+  if (id) {
+    fetchProfile();
+  }
+}, [id]);
 
   if (loading) return <p style={{ padding: '2rem' }}>Ładowanie...</p>;
 
@@ -144,7 +187,7 @@ const backLink = `/znajdz?${query.toString()}`; // ✅ działa
   </button>
 </Link>
 
-  <Link href={backLink}>
+<Link href={backLink}>
   <button
     style={{
       backgroundColor: '#f0f0f0',
@@ -163,8 +206,60 @@ const backLink = `/znajdz?${query.toString()}`; // ✅ działa
 </Link>
 
         </div>
-       
       </div>
+
+      {collaborators.length > 0 && (
+        <div style={{ marginTop: '3rem' }}>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#0D1F40' }}>
+            Specjaliści, z którymi współpracuje
+          </h2>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '1rem',
+            }}
+          >
+            {collaborators.map((collab) => (
+              <Link
+                key={collab.id}
+                href={`/specjalista/profil/${collab.id}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: '1rem',
+                    padding: '1rem',
+                    backgroundColor: '#fafafa',
+                    height: '100%',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <img
+                    src={collab.avatarUrl || '/images/placeholder.jpg'}
+                    alt={`${collab.firstName || ''} ${collab.lastName || ''}`}
+                    style={{
+                      width: '80px',
+                      height: '80px',
+                      objectFit: 'cover',
+                      borderRadius: '50%',
+                      marginBottom: '0.75rem',
+                    }}
+                  />
+                  <h3 style={{ margin: 0, color: '#0D1F40' }}>
+                    {collab.firstName} {collab.lastName}
+                  </h3>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.95rem', color: '#555' }}>
+                    {collab.specialization?.join(', ') || 'Specjalista'}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

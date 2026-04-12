@@ -68,6 +68,14 @@ const buttonOfertaSecondary: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+type CollaboratorOption = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  specialization?: string[];
+  avatarUrl?: string;
+};
+
 export default function SpecjalistaPage({ activeTab, setActiveTab }: {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -106,6 +114,12 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const { showDialog } = useDialog();
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  const [collaboratorSearch, setCollaboratorSearch] = useState('');
+  const [collaboratorOptions, setCollaboratorOptions] = useState<CollaboratorOption[]>([]);
+  const [selectedCollaboratorProfiles, setSelectedCollaboratorProfiles] = useState<CollaboratorOption[]>([]);
+  const [loadingCollaborators, setLoadingCollaborators] = useState(false);
 
   const [ownerSuggestions, setOwnerSuggestions] = useState<string[]>([]);
   const [highlightOwnerIndex, setHighlightOwnerIndex] = useState(-1);
@@ -354,6 +368,7 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
         avatarUrl,
         kosztyDojazdu,
         czasTrwania,
+        collaborators,
       };
 
       const profileRef = doc(db, 'profile', user.uid);
@@ -460,7 +475,7 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
             setFirstName(spec.firstName || '');
             setLastName(spec.lastName || '');
             setOpis(spec.description || '');
-            setWojewodztwo(spec.location || '');
+            setWojewodztwo(Array.isArray(spec.location) ? spec.location : []);
             setSpecialization(spec.specialization || []);
             setDoswiadczenie(spec.experience || '');
             setAvatarPreview(spec.avatarUrl || '');
@@ -481,7 +496,9 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
           setFirstName((prev) => prev || profile.firstName || '');
           setLastName((prev) => prev || profile.lastName || '');
           setOpis((prev) => prev || profile.opis || '');
-          setWojewodztwo((prev) => prev || profile.wojewodztwo || '');
+          setWojewodztwo((prev) =>
+            prev.length ? prev : Array.isArray(profile.wojewodztwo) ? profile.wojewodztwo : []
+          );
           setSpecialization((prev) => prev.length ? prev : profile.specialization || []);
           setContactTypes((prev) => prev.length ? prev : profile.contactTypes || []);
           setDoswiadczenie((prev) => prev || profile.doswiadczenie || '');
@@ -489,6 +506,9 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
           setCenaOnline((prev) => prev || profile.cenaOnline || '');
           setCenaStacjonarna((prev) => prev || profile.cenaStacjonarna || '');
           setAvatarPreview((prev) => prev || profile.avatarUrl || '');
+          setKosztyDojazdu((prev) => prev || profile.kosztyDojazdu || '');
+          setCzasTrwania((prev) => prev || profile.czasTrwania || '');
+          setCollaborators(profile.collaborators || []);
         }
       });
     };
@@ -497,6 +517,48 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
   }, []);
 
   const [statusModalMessage, setStatusModalMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+  const fetchCollaboratorProfiles = async () => {
+    if (!collaborators.length) {
+      setSelectedCollaboratorProfiles([]);
+      return;
+    }
+
+    try {
+      setLoadingCollaborators(true);
+      const db = getFirestore(app);
+
+      const promises = collaborators.map(async (uid) => {
+        const ref = doc(db, 'profile', uid);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) return null;
+
+        const data = snap.data();
+        return {
+          id: uid,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          specialization: data.specialization || [],
+          avatarUrl: data.avatarUrl || '',
+        } as CollaboratorOption;
+      });
+
+      const results = await Promise.all(promises);
+      setSelectedCollaboratorProfiles(
+        results.filter((item): item is CollaboratorOption => item !== null)
+      );
+    } catch (error) {
+      console.error('Błąd pobierania współpracowników:', error);
+      setSelectedCollaboratorProfiles([]);
+    } finally {
+      setLoadingCollaborators(false);
+    }
+  };
+
+  fetchCollaboratorProfiles();
+}, [collaborators]);
 
   const updateRequestStatus = async (
     id: string,
@@ -708,6 +770,53 @@ Zaloguj się, aby odpowiedzieć.`,
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+  const fetchCollaboratorOptions = async () => {
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const search = collaboratorSearch.trim().toLowerCase();
+
+    if (search.length < 2) {
+      setCollaboratorOptions([]);
+      return;
+    }
+
+    try {
+      const db = getFirestore(app);
+      const snap = await getDocs(collection(db, 'profile'));
+
+      const results: CollaboratorOption[] = snap.docs
+        .map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            specialization: data.specialization || [],
+            avatarUrl: data.avatarUrl || '',
+          };
+        })
+        .filter((spec) => {
+          if (spec.id === user.uid) return false;
+          if (collaborators.includes(spec.id)) return false;
+
+          const fullName = `${spec.firstName || ''} ${spec.lastName || ''}`.toLowerCase();
+          return fullName.includes(search);
+        })
+        .slice(0, 10);
+
+      setCollaboratorOptions(results);
+    } catch (error) {
+      console.error('Błąd wyszukiwania specjalistów:', error);
+      setCollaboratorOptions([]);
+    }
+  };
+
+  fetchCollaboratorOptions();
+}, [collaboratorSearch, collaborators]);
+
   const handleZapiszOferte = async () => {
     const auth = getAuth(app);
     const db = getFirestore(app);
@@ -752,14 +861,25 @@ Zaloguj się, aby odpowiedzieć.`,
     }
   };
 
-  const handleSelectChat = (chatId: string) => {
-    setSelectedChatId(chatId);
-    setShowChatList(false); // Po wybraniu czatu, pokaż tylko okno czatu
-  };
+const handleSelectChat = (chatId: string) => {
+  setSelectedChatId(chatId);
+  setShowChatList(false); // Po wybraniu czatu, pokaż tylko okno czatu
+};
 
-  const handleBackToChatList = () => {
-    setShowChatList(true); // Powrót do listy czatów
-  };
+const handleBackToChatList = () => {
+  setShowChatList(true); // Powrót do listy czatów
+};
+
+const handleAddCollaborator = (specId: string) => {
+  if (collaborators.includes(specId)) return;
+  setCollaborators((prev) => [...prev, specId]);
+  setCollaboratorSearch('');
+  setCollaboratorOptions([]);
+};
+
+const handleRemoveCollaborator = (specId: string) => {
+  setCollaborators((prev) => prev.filter((id) => id !== specId));
+};
 
   const renderContent = () => {
     switch (activeTab) {
@@ -939,15 +1059,125 @@ Zaloguj się, aby odpowiedzieć.`,
                 }} />
               </label>
 
-              {avatarPreview && (
-                <img
-                  src={avatarPreview}
-                  alt="Podgląd zdjęcia"
-                  style={{ width: '150px', borderRadius: '0.5rem', marginTop: '1rem' }}
-                />
-              )}
+{avatarPreview && (
+  <img
+    src={avatarPreview}
+    alt="Podgląd zdjęcia"
+    style={{ width: '150px', borderRadius: '0.5rem', marginTop: '1rem' }}
+  />
+)}
 
-              <button type="submit" style={buttonStyle}>💾 Zapisz zmiany</button>
+<div style={{ marginTop: '1.5rem' }}>
+  <label style={labelStyle}>Specjaliści, z którymi współpracujesz:</label>
+
+  <input
+    type="text"
+    value={collaboratorSearch}
+    onChange={(e) => setCollaboratorSearch(e.target.value)}
+    style={inputStyle}
+    placeholder="Wpisz imię i nazwisko specjalisty"
+  />
+
+  {collaboratorOptions.length > 0 && (
+    <div
+      style={{
+        border: '1px solid #ccc',
+        borderRadius: '0.5rem',
+        marginTop: '0.5rem',
+        backgroundColor: '#fff',
+        overflow: 'hidden',
+      }}
+    >
+      {collaboratorOptions.map((spec) => (
+        <button
+          key={spec.id}
+          type="button"
+          onClick={() => handleAddCollaborator(spec.id)}
+          style={{
+            display: 'block',
+            width: '100%',
+            textAlign: 'left',
+            padding: '0.75rem 1rem',
+            border: 'none',
+            borderBottom: '1px solid #eee',
+            background: 'white',
+            cursor: 'pointer',
+          }}
+        >
+          <strong>{spec.firstName} {spec.lastName}</strong>
+          <div style={{ fontSize: '0.9rem', color: '#666' }}>
+            {spec.specialization?.join(', ') || 'Specjalista'}
+          </div>
+        </button>
+      ))}
+    </div>
+  )}
+
+  <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
+    {loadingCollaborators && <p>Ładowanie współpracowników...</p>}
+
+    {selectedCollaboratorProfiles.map((spec) => (
+      <div
+        key={spec.id}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem',
+          border: '1px solid #ddd',
+          borderRadius: '0.75rem',
+          padding: '0.75rem 1rem',
+          backgroundColor: '#fafafa',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <img
+            src={spec.avatarUrl || '/images/placeholder.jpg'}
+            alt={`${spec.firstName || ''} ${spec.lastName || ''}`}
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+            }}
+          />
+          <div>
+            <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+              {spec.firstName} {spec.lastName}
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#666' }}>
+              {spec.specialization?.join(', ') || 'Specjalista'}
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleRemoveCollaborator(spec.id)}
+          style={{
+            backgroundColor: '#c00',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '0.4rem',
+            padding: '0.5rem 0.8rem',
+            cursor: 'pointer',
+          }}
+        >
+          Usuń
+        </button>
+      </div>
+    ))}
+
+    {!loadingCollaborators && selectedCollaboratorProfiles.length === 0 && (
+      <p style={{ color: '#666' }}>
+        Nie dodano jeszcze specjalistów, z którymi współpracujesz.
+      </p>
+    )}
+  </div>
+</div>
+
+<button type="submit" style={buttonStyle}>💾 Zapisz zmiany</button>
+
               <button
                 type="button"
                 onClick={() => {
