@@ -12,7 +12,6 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 
-
 type FormState = {
   name: string;
   locations: string[]; 
@@ -20,6 +19,8 @@ type FormState = {
   specialization: string[];
   minRating: string;
   maxPrice: string;
+  sortBy: string;
+  hasTeam: boolean; // Dodane pole dla zespołu
 };
 
 export default function ZnajdzClient() {
@@ -77,6 +78,8 @@ export default function ZnajdzClient() {
     specialization: getSpecializationsFromParams(),
     minRating: searchParams.get('minRating') || '',
     maxPrice: searchParams.get('maxPrice') || '',
+    sortBy: searchParams.get('sortBy') || 'default',
+    hasTeam: searchParams.get('hasTeam') === 'true', // Pobieranie z URL
   };
 
   const [form, setForm] = useState<FormState>(initialForm);
@@ -90,7 +93,9 @@ export default function ZnajdzClient() {
     specialization: false,
     contact: true,
     rating: true,
-    price: true
+    price: true,
+    sort: true,
+    team: true // Dodana sekcja dla zespołu
   });
 
   const toggleSection = (section: keyof typeof openSections) => {
@@ -161,47 +166,47 @@ export default function ZnajdzClient() {
 
   // Zmiana pól formularza
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const target = e.target;
+    const value = target.type === 'checkbox' ? (target as HTMLInputElement).checked : target.value;
+    setForm({ ...form, [target.name]: value });
   };
 
+  // sprawdzanie roli - przycisk umów konsultację
+  useEffect(() => {
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-//sprawdzanie roli - przycisk umów konsultację
-useEffect(() => {
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setUserRole(null);
+        return;
+      }
 
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      setUserRole(null);
-      return;
-    }
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
 
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
 
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-
-        if (data.roles?.specjalista?.enabled) {
-          setUserRole('specjalista');
-        } else if (data.roles?.wlasciciel?.enabled) {
-          setUserRole('wlasciciel');
+          if (data.roles?.specjalista?.enabled) {
+            setUserRole('specjalista');
+          } else if (data.roles?.wlasciciel?.enabled) {
+            setUserRole('wlasciciel');
+          } else {
+            setUserRole(null);
+          }
         } else {
           setUserRole(null);
         }
-      } else {
+      } catch (error) {
+        console.error('Błąd przy pobieraniu roli użytkownika:', error);
         setUserRole(null);
       }
-    } catch (error) {
-      console.error('Błąd przy pobieraniu roli użytkownika:', error);
-      setUserRole(null);
-    }
-  });
+    });
 
-  return () => unsubscribe();
-}, []);
-
+    return () => unsubscribe();
+  }, []);
 
   // Checkboxy
   const handleCheckboxChange = (value: string, group: keyof FormState) => {
@@ -249,6 +254,8 @@ useEffect(() => {
       specialization: [],
       minRating: '',
       maxPrice: '',
+      sortBy: 'default',
+      hasTeam: false,
     });
     setFilteredNameSuggestions([]);
     setHighlightIndex(-1);
@@ -257,8 +264,10 @@ useEffect(() => {
 
   // Usuń pojedynczy filtr
   const removeFilter = (type: keyof FormState, value: string) => {
-    if (type === 'name' || type === 'minRating' || type === 'maxPrice') {
-      setForm((prev) => ({ ...prev, [type]: '' }));
+    if (type === 'name' || type === 'minRating' || type === 'maxPrice' || type === 'sortBy') {
+      setForm((prev) => ({ ...prev, [type]: type === 'sortBy' ? 'default' : '' }));
+    } else if (type === 'hasTeam') {
+      setForm((prev) => ({ ...prev, hasTeam: false }));
     } else if (type === 'locations') {
       setForm((prev) => {
         let updated = (prev.locations as string[]).filter((loc) => loc !== value);
@@ -294,56 +303,77 @@ useEffect(() => {
     ...form.contactTypes.map((c) => ({ type: 'contactTypes' as const, label: c, value: c })),
     ...(form.minRating ? [{ type: 'minRating' as const, label: `Ocena ≥ ${form.minRating}`, value: form.minRating }] : []),
     ...(form.maxPrice ? [{ type: 'maxPrice' as const, label: `Cena ≤ ${form.maxPrice} zł`, value: form.maxPrice }] : []),
+    ...(form.sortBy !== 'default' ? [{ type: 'sortBy' as const, label: `Sortowanie: ${form.sortBy === 'price_asc' ? 'Cena rosnąco' : form.sortBy === 'price_desc' ? 'Cena malejąco' : form.sortBy === 'rating_asc' ? 'Ocena rosnąco' : 'Ocena malejąco'}`, value: form.sortBy }] : []),
+    ...(form.hasTeam ? [{ type: 'hasTeam' as const, label: 'Ma zespół', value: 'true' }] : []),
   ];
 
-  // Filtrowanie wyników
-  const filtered = specialists.filter((spec) => {
-    // Obsługa lokalizacji
-    let locationMatch = form.locations.length === 0;
-    if (!locationMatch) {
-      if (form.locations.includes('Cała Polska')) {
-        locationMatch = true;
-      } else {
-        locationMatch = form.locations.some(loc => {
-          if (Array.isArray(spec.location)) {
-            return spec.location.includes(loc);
+  // Filtrowanie i sortowanie wyników
+  const filtered = specialists
+    .filter((spec) => {
+      // Obsługa lokalizacji
+      let locationMatch = form.locations.length === 0;
+      if (!locationMatch) {
+        if (form.locations.includes('Cała Polska')) {
+          locationMatch = true;
+        } else {
+          locationMatch = form.locations.some(loc => {
+            if (Array.isArray(spec.location)) {
+              return spec.location.includes(loc);
+            }
+            return spec.location === loc;
+          });
+        }
+      }
+
+      // Obsługa specjalizacji
+      let specializationMatch = form.specialization.length === 0;
+      if (!specializationMatch) {
+        specializationMatch = form.specialization.some(specSearch => {
+          if (Array.isArray(spec.specialization)) {
+            return spec.specialization.includes(specSearch);
           }
-          return spec.location === loc;
+          return spec.specialization === specSearch;
         });
       }
-    }
 
-    // Obsługa specjalizacji
-    let specializationMatch = form.specialization.length === 0;
-    if (!specializationMatch) {
-      specializationMatch = form.specialization.some(specSearch => {
-        if (Array.isArray(spec.specialization)) {
-          return spec.specialization.includes(specSearch);
-        }
-        return spec.specialization === specSearch;
-      });
-    }
+      // Obsługa form kontaktu
+      let contactMatch = form.contactTypes.length === 0;
+      if (!contactMatch) {
+        contactMatch = form.contactTypes.some(contactSearch => {
+          if (Array.isArray(spec.contact)) {
+            return spec.contact.includes(contactSearch);
+          }
+          return spec.contact === contactSearch;
+        });
+      }
 
-    // Obsługa form kontaktu
-    let contactMatch = form.contactTypes.length === 0;
-    if (!contactMatch) {
-      contactMatch = form.contactTypes.some(contactSearch => {
-        if (Array.isArray(spec.contact)) {
-          return spec.contact.includes(contactSearch);
-        }
-        return spec.contact === contactSearch;
-      });
-    }
+      // Obsługa filtru "ma zespół"
+      let teamMatch = !form.hasTeam || (spec.hasTeam === true);
 
-    return (
-      (form.name === '' || spec.name.toLowerCase().includes(form.name.toLowerCase())) &&
-      locationMatch &&
-      specializationMatch &&
-      contactMatch &&
-      (form.minRating === '' || spec.rating >= parseInt(form.minRating)) &&
-      (form.maxPrice === '' || spec.price <= parseInt(form.maxPrice))
-    );
-  });
+      return (
+        (form.name === '' || spec.name.toLowerCase().includes(form.name.toLowerCase())) &&
+        locationMatch &&
+        specializationMatch &&
+        contactMatch &&
+        (form.minRating === '' || spec.rating >= parseInt(form.minRating)) &&
+        (form.maxPrice === '' || spec.price <= parseInt(form.maxPrice)) &&
+        teamMatch
+      );
+    })
+    .sort((a, b) => {
+      switch (form.sortBy) {
+        case 'price_asc':
+          return (a.price || Infinity) - (b.price || Infinity);
+        case 'price_desc':
+          return (b.price || -Infinity) - (a.price || -Infinity);
+        case 'rating_asc':
+          return (a.rating || 0) - (b.rating || 0);
+        case 'rating_desc':
+          return (b.rating || 0) - (a.rating || 0);
+        default:
+          return 0;
+      }
+    });
 
   // Style dla pogrubionych tytułów
   const sectionTitleStyle = {
@@ -572,13 +602,54 @@ useEffect(() => {
               name="maxPrice"
               value={form.maxPrice}
               onChange={handleChange}
-              style={{ ...inputStyle, marginTop: '0.5rem' }}
+              style={{ ...inputStyle, marginTop: '0.5rem', marginBottom: '1rem' }}
             >
               {maxPriceOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
+            </select>
+          )}
+
+          {/* Zespół - NOWA SEKCJA */}
+          <div 
+            style={sectionTitleStyle}
+            onClick={() => toggleSection('team')}
+          >
+            Zespół {openSections.team ? '▲' : '▼'}
+          </div>
+          {openSections.team && (
+            <label style={{ display: 'block', marginBottom: '1rem', marginTop: '0.5rem' }}>
+              <input
+                type="checkbox"
+                name="hasTeam"
+                checked={form.hasTeam}
+                onChange={handleChange}
+              />{' '}
+              Pokaż tylko specjalistów z zespołem
+            </label>
+          )}
+
+          {/* Sortowanie */}
+          <div 
+            style={sectionTitleStyle}
+            onClick={() => toggleSection('sort')}
+          >
+            Sortuj wyniki {openSections.sort ? '▲' : '▼'}
+          </div>
+          {openSections.sort && (
+            <select
+              name="sortBy"
+              value={form.sortBy}
+              onChange={handleChange}
+              style={{ ...inputStyle, marginTop: '0.5rem', marginBottom: '1rem' }}
+            >
+              <option value="default">Domyślnie</option>
+              <option value="price_asc">Cena: od najniższej</option>
+              <option value="price_desc">Cena: od najwyższej</option>
+              <option value="rating_asc">Ocena: od najniższej</option>
+              <option value="rating_desc">Ocena: od najwyższej</option>
             </select>
           )}
 
@@ -687,6 +758,19 @@ useEffect(() => {
                 textAlign: isMobile ? 'center' : 'left',
               }}>
                 {spec.name}
+                {spec.hasTeam && (
+                  <span style={{ 
+                    fontSize: '0.8rem', 
+                    backgroundColor: '#4CAF50', 
+                    color: 'white', 
+                    padding: '0.2rem 0.5rem', 
+                    borderRadius: '0.5rem',
+                    marginLeft: '0.5rem',
+                    display: 'inline-block'
+                  }}>
+                    👥 Zespół
+                  </span>
+                )}
               </h2>
               
               {/* Grid na mobile dla lepszego układu */}
@@ -724,27 +808,27 @@ useEffect(() => {
                 gap: '1rem', 
                 marginTop: '1rem' 
               }}>
-{userRole !== 'specjalista' && (
-  <Link
-    href={`/konsultacja/umow?specjalista=${encodeURIComponent(spec.name)}`}
-    style={{ width: isMobile ? '100%' : 'auto' }}
-  >
-    <button
-      style={{
-        backgroundColor: '#0D1F40',
-        color: '#fff',
-        padding: '0.75rem 1.5rem',
-        border: '2px solid #0D1F40',
-        borderRadius: '0.5rem',
-        cursor: 'pointer',
-        fontSize: isMobile ? '0.95rem' : '1rem',
-        width: isMobile ? '100%' : 'auto',
-      }}
-    >
-      Umów konsultację
-    </button>
-  </Link>
-)}
+                {userRole !== 'specjalista' && (
+                  <Link
+                    href={`/konsultacja/umow?specjalista=${encodeURIComponent(spec.name)}`}
+                    style={{ width: isMobile ? '100%' : 'auto' }}
+                  >
+                    <button
+                      style={{
+                        backgroundColor: '#0D1F40',
+                        color: '#fff',
+                        padding: '0.75rem 1.5rem',
+                        border: '2px solid #0D1F40',
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer',
+                        fontSize: isMobile ? '0.95rem' : '1rem',
+                        width: isMobile ? '100%' : 'auto',
+                      }}
+                    >
+                      Umów konsultację
+                    </button>
+                  </Link>
+                )}
 
                 <Link
                   href={{

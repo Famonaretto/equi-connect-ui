@@ -3,22 +3,22 @@ import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firesto
 import { app } from '@/lib/firebase';
 
 export type Specialist = {
-  uid: string; // 👈 teraz zawsze dostępny
-  id?: string; // id dokumentu w "profile"
+  uid: string;
+  id?: string;
   name: string;
   location: string;
   specialization: string | string[];
   contact: string[];
   rating: number;
   reviews: number;
-  price: number; // najniższa cena
+  price: number;
   photo: string;
+  hasTeam?: boolean; // 👈 DODAJ to pole (opcjonalne)
 };
 
 export async function getSpecialistsFromFirestore(): Promise<Specialist[]> {
   const db = getFirestore(app);
 
-  // pobieramy profile specjalistów
   const snapshot = await getDocs(collection(db, 'profile'));
 
   const specialists: Specialist[] = [];
@@ -33,13 +33,12 @@ export async function getSpecialistsFromFirestore(): Promise<Specialist[]> {
       .filter((c) => c !== null)
       .reduce((min, curr) => (curr! < min! ? curr : min), Number.MAX_SAFE_INTEGER);
 
-    // 👇 pobierz dane użytkownika powiązanego z profilem
     let uid = '';
     if (data.userId) {
       const userDoc = await getDoc(doc(db, 'users', data.userId));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        uid = userData.uid || data.userId; // zawsze mamy uid
+        uid = userData.uid || data.userId;
       }
     }
 
@@ -54,6 +53,7 @@ export async function getSpecialistsFromFirestore(): Promise<Specialist[]> {
       location: data.wojewodztwo || 'Nieznana',
       contact: data.contactTypes || [],
       rating: data.rating || 0,
+      hasTeam: data.hasTeam || false, // 👈 DODAJ to - pobiera wartość z Firestore lub ustawia false
     });
   }
 
