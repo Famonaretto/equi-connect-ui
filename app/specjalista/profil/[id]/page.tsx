@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -20,10 +20,9 @@ type SpecialistProfile = {
   kursy?: string;
   certyfikaty?: string;
   photo?: string;
-  avatarUrl?: string; 
+  avatarUrl?: string;
   kosztyDojazdu?: string;
   czasTrwania?: string;
-  collaborators?: string[];
 };
 
 type CollaboratorProfile = {
@@ -32,6 +31,12 @@ type CollaboratorProfile = {
   lastName?: string;
   specialization?: string[];
   avatarUrl?: string;
+};
+
+type CollaborationInviteData = {
+  fromUid: string;
+  toUid: string;
+  status: 'pending' | 'accepted' | 'rejected';
 };
 
 export default function PublicSpecialistProfilePage() {
@@ -54,14 +59,14 @@ const filters = {
 };
 
 // Generujemy query string
-const query = new URLSearchParams();
-filters.specialization.forEach((s) => query.append('specialization', s));
-filters.contactTypes.forEach((c) => query.append('contactTypes', c));
-if (filters.location) query.append('location', filters.location);
-if (filters.minRating) query.append('minRating', filters.minRating);
-if (filters.maxPrice) query.append('maxPrice', filters.maxPrice);
+const queryParams = new URLSearchParams();
+filters.specialization.forEach((s) => queryParams.append('specialization', s));
+filters.contactTypes.forEach((c) => queryParams.append('contactTypes', c));
+if (filters.location) queryParams.append('location', filters.location);
+if (filters.minRating) queryParams.append('minRating', filters.minRating);
+if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
 
-const backLink = `/znajdz?${query.toString()}`; // ✅ działa
+const backLink = `/znajdz?${queryParams.toString()}`;
 
 
 useEffect(() => {
@@ -80,35 +85,66 @@ useEffect(() => {
       const profileData = docSnap.data() as SpecialistProfile;
       setProfile(profileData);
 
-      if (profileData.collaborators?.length) {
-const collaboratorPromises: Promise<CollaboratorProfile | null>[] =
-  profileData.collaborators.map(async (collabId): Promise<CollaboratorProfile | null> => {
-    const collabRef = doc(db, 'profile', collabId);
-    const collabSnap = await getDoc(collabRef);
+      const invitesRef = collection(db, 'collaborationInvites');
 
-    if (!collabSnap.exists()) return null;
+      const q1 = query(
+        invitesRef,
+        where('fromUid', '==', id),
+        where('status', '==', 'accepted')
+      );
 
-    const collabData = collabSnap.data() as SpecialistProfile;
+      const q2 = query(
+        invitesRef,
+        where('toUid', '==', id),
+        where('status', '==', 'accepted')
+      );
 
-    return {
-      id: collabId,
-      firstName: collabData.firstName,
-      lastName: collabData.lastName,
-      specialization: collabData.specialization,
-      avatarUrl: collabData.avatarUrl,
-    };
-  });
+      const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
 
-        const collaboratorResults = await Promise.all(collaboratorPromises);
+      const collaboratorIds = Array.from(
+        new Set([
+          ...snap1.docs.map((d) => {
+            const data = d.data() as CollaborationInviteData;
+            return data.toUid;
+          }),
+          ...snap2.docs.map((d) => {
+            const data = d.data() as CollaborationInviteData;
+            return data.fromUid;
+          }),
+        ])
+      );
 
-        setCollaborators(
-          collaboratorResults.filter(
-            (item): item is CollaboratorProfile => item !== null
-          )
-        );
-      } else {
+      if (!collaboratorIds.length) {
         setCollaborators([]);
+        return;
       }
+
+      const collaboratorPromises: Promise<CollaboratorProfile | null>[] =
+        collaboratorIds.map(async (collabId): Promise<CollaboratorProfile | null> => {
+          const collabRef = doc(db, 'profile', collabId);
+          const collabSnap = await getDoc(collabRef);
+
+          if (!collabSnap.exists()) return null;
+
+          const collabData = collabSnap.data() as SpecialistProfile;
+
+          return {
+            id: collabId,
+            firstName: collabData.firstName,
+            lastName: collabData.lastName,
+            specialization: collabData.specialization,
+            avatarUrl: collabData.avatarUrl,
+          };
+        });
+
+      const collaboratorResults: (CollaboratorProfile | null)[] =
+        await Promise.all(collaboratorPromises);
+
+      const validCollaborators = collaboratorResults.filter(
+        (item): item is CollaboratorProfile => item !== null
+      );
+
+      setCollaborators(validCollaborators);
     } catch (error) {
       console.error('Błąd pobierania profilu:', error);
       setProfile(null);

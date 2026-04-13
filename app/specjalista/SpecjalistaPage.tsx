@@ -1,8 +1,22 @@
 'use client';
 import { useState } from 'react';
 import { getAuth, updateEmail, updatePassword, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, collection, getDocs, query, where, getDoc, addDoc, Timestamp, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  getDoc,
+  addDoc,
+  Timestamp,
+  onSnapshot,
+  updateDoc,
+  serverTimestamp,
+  deleteDoc,
+} from 'firebase/firestore';import { app } from '@/lib/firebase';
 import { useEffect } from 'react';
 import locations from '@/utils/locations';
 import { contactOptions } from '@/utils/contactOptions';
@@ -68,12 +82,24 @@ const buttonOfertaSecondary: React.CSSProperties = {
   cursor: 'pointer',
 };
 
+
+
 type CollaboratorOption = {
   id: string;
   firstName?: string;
   lastName?: string;
   specialization?: string[];
   avatarUrl?: string;
+};
+
+type CollaborationInvite = {
+  id: string;
+  fromUid: string;
+  toUid: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt?: any;
+  updatedAt?: any;
+  otherProfile?: CollaboratorOption;
 };
 
 export default function SpecjalistaPage({ activeTab, setActiveTab }: {
@@ -115,14 +141,18 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
   const { showDialog } = useDialog();
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
-  const [collaborators, setCollaborators] = useState<string[]>([]);
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [collaboratorOptions, setCollaboratorOptions] = useState<CollaboratorOption[]>([]);
-  const [selectedCollaboratorProfiles, setSelectedCollaboratorProfiles] = useState<CollaboratorOption[]>([]);
   const [loadingCollaborators, setLoadingCollaborators] = useState(false);
+
+  const [acceptedCollaborators, setAcceptedCollaborators] = useState<CollaboratorOption[]>([]);
+  const [sentInvites, setSentInvites] = useState<CollaborationInvite[]>([]);
+  const [receivedInvites, setReceivedInvites] = useState<CollaborationInvite[]>([]);
 
   const [ownerSuggestions, setOwnerSuggestions] = useState<string[]>([]);
   const [highlightOwnerIndex, setHighlightOwnerIndex] = useState(-1);
+
+  const [pendingInvites, setPendingInvites] = useState<CollaboratorOption[]>([]);
 
   const [refreshKey, setRefreshKey] = useState(0);
   const calendarCount = useCalendarCounter("specjalista", refreshKey);
@@ -296,96 +326,131 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
     );
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log('✅ handleSaveProfile uruchomione');
-    setStatus('');
-    setError('');
+const handleSaveProfile = async (e: React.FormEvent) => {
+  e.preventDefault();
+  console.log('✅ handleSaveProfile uruchomione');
+  setStatus('');
+  setError('');
 
-    const cenaOnlineNum = parseFloat(cenaOnline) || 0;
-    const cenaStacjonarnaNum = parseFloat(cenaStacjonarna) || 0;
+  const cenaOnlineNum = parseFloat(cenaOnline) || 0;
+  const cenaStacjonarnaNum = parseFloat(cenaStacjonarna) || 0;
 
-    const hasStationaryForm = contactTypes?.some(
-      (type) => ["W stajni konia", "W ośrodku specjalisty"].includes(type)
-    );
+  const hasStationaryForm = contactTypes?.some(
+    (type) => ["W stajni konia", "W ośrodku specjalisty"].includes(type)
+  );
 
-    if (cenaOnlineNum > 0 && !contactTypes.includes("On-line")) {
-      await showDialog("❌ Podałeś cenę online, ale nie zaznaczyłeś formy kontaktu 'On-line'.");
-      return;
-    }
+  if (cenaOnlineNum > 0 && !contactTypes.includes("On-line")) {
+    await showDialog("❌ Podałeś cenę online, ale nie zaznaczyłeś formy kontaktu 'On-line'.");
+    return;
+  }
 
-    if (cenaOnlineNum <= 0 && contactTypes.includes("On-line")) {
-      await showDialog("❌ Zaznaczyłeś formę kontaktu 'On-line', ale nie podałeś ceny online.");
-      return;
-    }
+  if (cenaOnlineNum <= 0 && contactTypes.includes("On-line")) {
+    await showDialog("❌ Zaznaczyłeś formę kontaktu 'On-line', ale nie podałeś ceny online.");
+    return;
+  }
 
-    if (cenaStacjonarnaNum > 0 && !hasStationaryForm) {
-      await showDialog("❌ Podałeś cenę stacjonarną, ale nie zaznaczyłeś formy kontaktu stacjonarnej.");
-      return;
-    }
+  if (cenaStacjonarnaNum > 0 && !hasStationaryForm) {
+    await showDialog("❌ Podałeś cenę stacjonarną, ale nie zaznaczyłeś formy kontaktu stacjonarnej.");
+    return;
+  }
 
-    if (cenaStacjonarnaNum <= 0 && hasStationaryForm) {
-      await showDialog("❌ Zaznaczyłeś formę kontaktu stacjonarną, ale nie podałeś ceny stacjonarnej.");
-      return;
-    }
+  if (cenaStacjonarnaNum <= 0 && hasStationaryForm) {
+    await showDialog("❌ Zaznaczyłeś formę kontaktu stacjonarną, ale nie podałeś ceny stacjonarnej.");
+    return;
+  }
 
-    try {
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      const db = getFirestore(app);
-      const storage = getStorage(app);
+  try {
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
-      if (!user) throw new Error('Brak zalogowanego użytkownika');
+    if (!user) throw new Error('Brak zalogowanego użytkownika');
 
-      let avatarUrl = avatarPreview || '';
-      if (avatar) {
-        try {
-          console.log('⬆️ Upload zdjęcia...');
-          const storageRef = ref(storage, `avatars/${user.uid}/${avatar.name}`);
-          const snapshot = await uploadBytes(storageRef, avatar);
-          avatarUrl = await getDownloadURL(snapshot.ref);
-          setAvatarPreview(avatarUrl);
-        } catch (uploadError) {
-          console.error('❌ Błąd uploadu zdjęcia:', uploadError);
-          setError('Nie udało się załadować zdjęcia. Spróbuj ponownie.');
-          return;
-        }
+    let avatarUrl = avatarPreview || '';
+
+    if (avatar) {
+      try {
+        console.log('⬆️ Upload zdjęcia...');
+        const storageRef = ref(storage, `avatars/${user.uid}/${avatar.name}`);
+        const snapshot = await uploadBytes(storageRef, avatar);
+        avatarUrl = await getDownloadURL(snapshot.ref);
+        setAvatarPreview(avatarUrl);
+      } catch (uploadError) {
+        console.error('❌ Błąd uploadu zdjęcia:', uploadError);
+        setError('Nie udało się załadować zdjęcia. Spróbuj ponownie.');
+        return;
       }
-
-      const profileData = {
-        email: user.email,
-        firstName,
-        lastName,
-        wojewodztwo,
-        cenaOnline,
-        cenaStacjonarna,
-        contactTypes,
-        specialization,
-        opis,
-        doswiadczenie,
-        kursy,
-        certyfikaty,
-        avatarUrl,
-        kosztyDojazdu,
-        czasTrwania,
-        collaborators,
-      };
-
-      const profileRef = doc(db, 'profile', user.uid);
-      const profileSnap = await getDoc(profileRef);
-
-      if (profileSnap.exists()) {
-        await setDoc(profileRef, profileData, { merge: true });
-      } else {
-        await setDoc(profileRef, profileData);
-      }
-
-      setShowSaveConfirmation(true);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Wystąpił błąd przy zapisie profilu.');
     }
-  };
+
+    const profileData = {
+      email: user.email,
+      firstName,
+      lastName,
+      wojewodztwo,
+      cenaOnline,
+      cenaStacjonarna,
+      contactTypes,
+      specialization,
+      opis,
+      doswiadczenie,
+      kursy,
+      certyfikaty,
+      avatarUrl,
+      kosztyDojazdu,
+      czasTrwania,
+    };
+
+    const profileRef = doc(db, 'profile', user.uid);
+    const profileSnap = await getDoc(profileRef);
+
+    if (profileSnap.exists()) {
+      await setDoc(profileRef, profileData, { merge: true });
+    } else {
+      await setDoc(profileRef, profileData);
+    }
+
+    for (const spec of pendingInvites) {
+      const existingQ = query(
+        collection(db, 'collaborationInvites'),
+        where('fromUid', '==', user.uid),
+        where('toUid', '==', spec.id)
+      );
+
+      const reverseQ = query(
+        collection(db, 'collaborationInvites'),
+        where('fromUid', '==', spec.id),
+        where('toUid', '==', user.uid)
+      );
+
+      const [existingSnap, reverseSnap] = await Promise.all([
+        getDocs(existingQ),
+        getDocs(reverseQ),
+      ]);
+
+      const alreadyExists =
+        !existingSnap.empty ||
+        !reverseSnap.empty ||
+        acceptedCollaborators.some((c) => c.id === spec.id);
+
+      if (!alreadyExists) {
+        await addDoc(collection(db, 'collaborationInvites'), {
+          fromUid: user.uid,
+          toUid: spec.id,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    setPendingInvites([]);
+    setShowSaveConfirmation(true);
+  } catch (err: any) {
+    console.error(err);
+    setError(err.message || 'Wystąpił błąd przy zapisie profilu.');
+  }
+};
 
   const [filterOwner, setFilterOwner] = useState('');
   const [filterForma, setFilterForma] = useState('');
@@ -508,7 +573,6 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
           setAvatarPreview((prev) => prev || profile.avatarUrl || '');
           setKosztyDojazdu((prev) => prev || profile.kosztyDojazdu || '');
           setCzasTrwania((prev) => prev || profile.czasTrwania || '');
-          setCollaborators(profile.collaborators || []);
         }
       });
     };
@@ -516,49 +580,114 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
     loadUserAndProfileData();
   }, []);
 
-  const [statusModalMessage, setStatusModalMessage] = useState<string | null>(null);
-
   useEffect(() => {
-  const fetchCollaboratorProfiles = async () => {
-    if (!collaborators.length) {
-      setSelectedCollaboratorProfiles([]);
-      return;
-    }
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!user) return;
 
     try {
       setLoadingCollaborators(true);
-      const db = getFirestore(app);
 
-      const promises = collaborators.map(async (uid) => {
-        const ref = doc(db, 'profile', uid);
-        const snap = await getDoc(ref);
+      const sentQ = query(
+        collection(db, 'collaborationInvites'),
+        where('fromUid', '==', user.uid)
+      );
 
-        if (!snap.exists()) return null;
+      const receivedQ = query(
+        collection(db, 'collaborationInvites'),
+        where('toUid', '==', user.uid)
+      );
 
-        const data = snap.data();
+      const [sentSnap, receivedSnap] = await Promise.all([
+        getDocs(sentQ),
+        getDocs(receivedQ),
+      ]);
+
+      const allDocs = [...sentSnap.docs, ...receivedSnap.docs];
+
+      const allOtherUids = Array.from(
+        new Set(
+          allDocs.map((d) => {
+            const data = d.data();
+            return data.fromUid === user.uid ? data.toUid : data.fromUid;
+          })
+        )
+      );
+
+      const profilesMap = new Map<string, CollaboratorOption>();
+
+      await Promise.all(
+        allOtherUids.map(async (uid) => {
+          const snap = await getDoc(doc(db, 'profile', uid));
+          if (!snap.exists()) return;
+
+          const data = snap.data();
+          profilesMap.set(uid, {
+            id: uid,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            specialization: data.specialization || [],
+            avatarUrl: data.avatarUrl || '',
+          });
+        })
+      );
+
+      const sent: CollaborationInvite[] = sentSnap.docs.map((d) => {
+        const data = d.data();
         return {
-          id: uid,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          specialization: data.specialization || [],
-          avatarUrl: data.avatarUrl || '',
-        } as CollaboratorOption;
+          id: d.id,
+          fromUid: data.fromUid,
+          toUid: data.toUid,
+          status: data.status,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          otherProfile: profilesMap.get(data.toUid),
+        };
       });
 
-      const results = await Promise.all(promises);
-      setSelectedCollaboratorProfiles(
-        results.filter((item): item is CollaboratorOption => item !== null)
+      const received: CollaborationInvite[] = receivedSnap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          fromUid: data.fromUid,
+          toUid: data.toUid,
+          status: data.status,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          otherProfile: profilesMap.get(data.fromUid),
+        };
+      });
+
+      const accepted = [...sent, ...received]
+        .filter((invite) => invite.status === 'accepted')
+        .map((invite) => invite.otherProfile)
+        .filter((item): item is CollaboratorOption => !!item);
+
+      const uniqueAccepted = Array.from(
+        new Map(accepted.map((item) => [item.id, item])).values()
       );
+
+      setAcceptedCollaborators(uniqueAccepted);
+      setSentInvites(sent.filter((invite) => invite.status === 'pending'));
+      setReceivedInvites(received.filter((invite) => invite.status === 'pending'));
     } catch (error) {
-      console.error('Błąd pobierania współpracowników:', error);
-      setSelectedCollaboratorProfiles([]);
+      console.error('Błąd pobierania współprac:', error);
+      setAcceptedCollaborators([]);
+      setSentInvites([]);
+      setReceivedInvites([]);
     } finally {
       setLoadingCollaborators(false);
     }
-  };
+  });
 
-  fetchCollaboratorProfiles();
-}, [collaborators]);
+  return () => unsubscribe();
+}, []);
+
+  const [statusModalMessage, setStatusModalMessage] = useState<string | null>(null);
+
+
 
   const updateRequestStatus = async (
     id: string,
@@ -800,8 +929,9 @@ Zaloguj się, aby odpowiedzieć.`,
         })
         .filter((spec) => {
           if (spec.id === user.uid) return false;
-          if (collaborators.includes(spec.id)) return false;
-
+          if (acceptedCollaborators.some((c) => c.id === spec.id)) return false;
+          if (sentInvites.some((invite) => invite.otherProfile?.id === spec.id)) return false;
+          if (receivedInvites.some((invite) => invite.otherProfile?.id === spec.id)) return false;
           const fullName = `${spec.firstName || ''} ${spec.lastName || ''}`.toLowerCase();
           return fullName.includes(search);
         })
@@ -815,7 +945,7 @@ Zaloguj się, aby odpowiedzieć.`,
   };
 
   fetchCollaboratorOptions();
-}, [collaboratorSearch, collaborators]);
+}, [collaboratorSearch, acceptedCollaborators, sentInvites, receivedInvites]);
 
   const handleZapiszOferte = async () => {
     const auth = getAuth(app);
@@ -870,15 +1000,129 @@ const handleBackToChatList = () => {
   setShowChatList(true); // Powrót do listy czatów
 };
 
-const handleAddCollaborator = (specId: string) => {
-  if (collaborators.includes(specId)) return;
-  setCollaborators((prev) => [...prev, specId]);
-  setCollaboratorSearch('');
-  setCollaboratorOptions([]);
+const handleCancelInvite = async (inviteId: string) => {
+  try {
+    const db = getFirestore(app);
+    await deleteDoc(doc(db, 'collaborationInvites', inviteId));
+    await showDialog('ℹ️ Zaproszenie zostało anulowane.');
+  } catch (error) {
+    console.error('Błąd anulowania zaproszenia:', error);
+    await showDialog('❌ Nie udało się anulować zaproszenia.');
+  }
 };
 
-const handleRemoveCollaborator = (specId: string) => {
-  setCollaborators((prev) => prev.filter((id) => id !== specId));
+const handleSendCollaborationInvite = async (targetSpec: CollaboratorOption) => {
+  try {
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const db = getFirestore(app);
+
+    const existingQ = query(
+      collection(db, 'collaborationInvites'),
+      where('fromUid', '==', user.uid),
+      where('toUid', '==', targetSpec.id)
+    );
+
+    const reverseQ = query(
+      collection(db, 'collaborationInvites'),
+      where('fromUid', '==', targetSpec.id),
+      where('toUid', '==', user.uid)
+    );
+
+    const [existingSnap, reverseSnap] = await Promise.all([
+      getDocs(existingQ),
+      getDocs(reverseQ),
+    ]);
+
+    const alreadyExists =
+      !existingSnap.empty ||
+      !reverseSnap.empty ||
+      acceptedCollaborators.some((c) => c.id === targetSpec.id);
+
+    if (alreadyExists) {
+      await showDialog('⚠️ Zaproszenie już istnieje albo współpraca została już potwierdzona.');
+      return;
+    }
+
+    await addDoc(collection(db, 'collaborationInvites'), {
+      fromUid: user.uid,
+      toUid: targetSpec.id,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    setCollaboratorSearch('');
+    setCollaboratorOptions([]);
+    await showDialog('✅ Zaproszenie do współpracy zostało wysłane.');
+  } catch (error) {
+    console.error('Błąd wysyłania zaproszenia:', error);
+    await showDialog('❌ Nie udało się wysłać zaproszenia.');
+  }
+};
+
+const handleAcceptInvite = async (inviteId: string) => {
+  try {
+    const db = getFirestore(app);
+    await updateDoc(doc(db, 'collaborationInvites', inviteId), {
+      status: 'accepted',
+      updatedAt: serverTimestamp(),
+    });
+    await showDialog('✅ Współpraca została potwierdzona.');
+  } catch (error) {
+    console.error('Błąd akceptacji zaproszenia:', error);
+    await showDialog('❌ Nie udało się zaakceptować zaproszenia.');
+  }
+};
+
+const handleRejectInvite = async (inviteId: string) => {
+  try {
+    const db = getFirestore(app);
+    await updateDoc(doc(db, 'collaborationInvites', inviteId), {
+      status: 'rejected',
+      updatedAt: serverTimestamp(),
+    });
+    await showDialog('ℹ️ Zaproszenie zostało odrzucone.');
+  } catch (error) {
+    console.error('Błąd odrzucenia zaproszenia:', error);
+    await showDialog('❌ Nie udało się odrzucić zaproszenia.');
+  }
+};
+
+const handleRemoveCollaboration = async (otherUid: string) => {
+  try {
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const db = getFirestore(app);
+
+    const q1 = query(
+      collection(db, 'collaborationInvites'),
+      where('fromUid', '==', user.uid),
+      where('toUid', '==', otherUid),
+      where('status', '==', 'accepted')
+    );
+
+    const q2 = query(
+      collection(db, 'collaborationInvites'),
+      where('fromUid', '==', otherUid),
+      where('toUid', '==', user.uid),
+      where('status', '==', 'accepted')
+    );
+
+    const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+
+    const docsToDelete = [...snap1.docs, ...snap2.docs];
+    await Promise.all(docsToDelete.map((d) => deleteDoc(d.ref)));
+
+    await showDialog('✅ Współpraca została usunięta.');
+  } catch (error) {
+    console.error('Błąd usuwania współpracy:', error);
+    await showDialog('❌ Nie udało się usunąć współpracy.');
+  }
 };
 
   const renderContent = () => {
@@ -1068,14 +1312,14 @@ const handleRemoveCollaborator = (specId: string) => {
 )}
 
 <div style={{ marginTop: '1.5rem' }}>
-  <label style={labelStyle}>Specjaliści, z którymi współpracujesz:</label>
+  <label style={labelStyle}>Współpraca z innymi specjalistami:</label>
 
   <input
     type="text"
     value={collaboratorSearch}
     onChange={(e) => setCollaboratorSearch(e.target.value)}
     style={inputStyle}
-    placeholder="Wpisz imię i nazwisko specjalisty"
+    placeholder="Wpisz imię i nazwisko specjalisty, którego chcesz zaprosić"
   />
 
   {collaboratorOptions.length > 0 && (
@@ -1092,8 +1336,11 @@ const handleRemoveCollaborator = (specId: string) => {
         <button
           key={spec.id}
           type="button"
-          onClick={() => handleAddCollaborator(spec.id)}
-          style={{
+          onClick={() => {
+            setPendingInvites((prev) => [...prev, spec]);
+            setCollaboratorSearch('');
+            setCollaboratorOptions([]);
+          }}          style={{
             display: 'block',
             width: '100%',
             textAlign: 'left',
@@ -1113,65 +1360,177 @@ const handleRemoveCollaborator = (specId: string) => {
     </div>
   )}
 
-  <div style={{ marginTop: '1rem', display: 'grid', gap: '0.75rem' }}>
-    {loadingCollaborators && <p>Ładowanie współpracowników...</p>}
+  <div style={{ marginTop: '1.5rem' }}>
+    <h3 style={{ color: '#0D1F40' }}>Potwierdzeni współpracownicy</h3>
 
-    {selectedCollaboratorProfiles.map((spec) => (
-      <div
-        key={spec.id}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '1rem',
-          border: '1px solid #ddd',
-          borderRadius: '0.75rem',
-          padding: '0.75rem 1rem',
-          backgroundColor: '#fafafa',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <img
-            src={spec.avatarUrl || '/images/placeholder.jpg'}
-            alt={`${spec.firstName || ''} ${spec.lastName || ''}`}
-            style={{
-              width: '50px',
-              height: '50px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-            }}
-          />
-          <div>
-            <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
-              {spec.firstName} {spec.lastName}
-            </div>
-            <div style={{ fontSize: '0.9rem', color: '#666' }}>
-              {spec.specialization?.join(', ') || 'Specjalista'}
-            </div>
-          </div>
-        </div>
+    {loadingCollaborators && <p>Ładowanie...</p>}
 
-        <button
-          type="button"
-          onClick={() => handleRemoveCollaborator(spec.id)}
+    {!loadingCollaborators && acceptedCollaborators.length === 0 && (
+      <p style={{ color: '#666' }}>Brak potwierdzonych współprac.</p>
+    )}
+
+    <div style={{ display: 'grid', gap: '0.75rem' }}>
+      {acceptedCollaborators.map((spec) => (
+        <div
+          key={spec.id}
           style={{
-            backgroundColor: '#c00',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '0.4rem',
-            padding: '0.5rem 0.8rem',
-            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            border: '1px solid #ddd',
+            borderRadius: '0.75rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: '#fafafa',
           }}
         >
-          Usuń
-        </button>
-      </div>
-    ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img
+              src={spec.avatarUrl || '/images/placeholder.jpg'}
+              alt={`${spec.firstName || ''} ${spec.lastName || ''}`}
+              style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+              }}
+            />
+            <div>
+              <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+                {spec.firstName} {spec.lastName}
+              </div>
+              <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                {spec.specialization?.join(', ') || 'Specjalista'}
+              </div>
+            </div>
+          </div>
 
-    {!loadingCollaborators && selectedCollaboratorProfiles.length === 0 && (
-      <p style={{ color: '#666' }}>
-        Nie dodano jeszcze specjalistów, z którymi współpracujesz.
-      </p>
+          <button
+            type="button"
+            onClick={() => handleRemoveCollaboration(spec.id)}
+            style={{
+              backgroundColor: '#c00',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '0.4rem',
+              padding: '0.5rem 0.8rem',
+              cursor: 'pointer',
+            }}
+          >
+            Usuń
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <div style={{ marginTop: '1.5rem' }}>
+    <h3 style={{ color: '#0D1F40' }}>Zaproszenia otrzymane</h3>
+
+    {receivedInvites.length === 0 ? (
+      <p style={{ color: '#666' }}>Brak oczekujących zaproszeń.</p>
+    ) : (
+      <div style={{ display: 'grid', gap: '0.75rem' }}>
+        {receivedInvites.map((invite) => (
+          <div
+            key={invite.id}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              backgroundColor: '#fffdf7',
+            }}
+          >
+            <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+              {invite.otherProfile?.firstName} {invite.otherProfile?.lastName}
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.3rem' }}>
+              {invite.otherProfile?.specialization?.join(', ') || 'Specjalista'}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+              <button
+                type="button"
+                onClick={() => handleAcceptInvite(invite.id)}
+                style={{
+                  backgroundColor: '#0D1F40',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0.4rem',
+                  padding: '0.5rem 0.8rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Akceptuj
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRejectInvite(invite.id)}
+                style={{
+                  backgroundColor: '#ccc',
+                  color: '#333',
+                  border: 'none',
+                  borderRadius: '0.4rem',
+                  padding: '0.5rem 0.8rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Odrzuć
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+
+  <div style={{ marginTop: '1.5rem' }}>
+    <h3 style={{ color: '#0D1F40' }}>Zaproszenia wysłane</h3>
+
+    {sentInvites.length === 0 ? (
+      <p style={{ color: '#666' }}>Brak oczekujących wysłanych zaproszeń.</p>
+    ) : (
+      <div style={{ display: 'grid', gap: '0.75rem' }}>
+        {sentInvites.map((invite) => (
+          <div
+            key={invite.id}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              backgroundColor: '#f7faff',
+            }}
+          >
+            <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+              {invite.otherProfile?.firstName} {invite.otherProfile?.lastName}
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.3rem' }}>
+              {invite.otherProfile?.specialization?.join(', ') || 'Specjalista'}
+            </div>
+<div style={{ marginTop: '0.7rem', color: '#777' }}>
+  Oczekuje na potwierdzenie.
+</div>
+
+
+
+<button
+  type="button"
+  onClick={() => handleCancelInvite(invite.id)}
+  style={{
+    marginTop: '0.5rem',
+    backgroundColor: '#c00',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '0.4rem',
+    padding: '0.4rem 0.7rem',
+    cursor: 'pointer',
+  }}
+>
+  Anuluj zaproszenie
+</button>
+          </div>
+        ))}
+      </div>
     )}
   </div>
 </div>
