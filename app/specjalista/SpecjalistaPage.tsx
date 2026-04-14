@@ -141,6 +141,8 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
   const { showDialog } = useDialog();
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
+  const [shownInviteIds, setShownInviteIds] = useState<string[]>([]);
+
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [collaboratorOptions, setCollaboratorOptions] = useState<CollaboratorOption[]>([]);
   const [loadingCollaborators, setLoadingCollaborators] = useState(false);
@@ -433,15 +435,26 @@ const handleSaveProfile = async (e: React.FormEvent) => {
         !reverseSnap.empty ||
         acceptedCollaborators.some((c) => c.id === spec.id);
 
-      if (!alreadyExists) {
-        await addDoc(collection(db, 'collaborationInvites'), {
-          fromUid: user.uid,
-          toUid: spec.id,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
+if (!alreadyExists) {
+  await addDoc(collection(db, 'collaborationInvites'), {
+    fromUid: user.uid,
+    toUid: spec.id,
+    status: 'pending',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const invitedProfileSnap = await getDoc(doc(db, 'profile', spec.id));
+  const invitedProfileData = invitedProfileSnap.exists() ? invitedProfileSnap.data() : null;
+
+  const invitedEmail = invitedProfileData?.email;
+
+  const invitedByName = `${firstName || ''} ${lastName || ''}`.trim() || 'Inny specjalista';
+
+  if (invitedEmail) {
+    await sendCollaborationInviteEmail(invitedEmail, invitedByName);
+  }
+}
     }
 
     setPendingInvites([]);
@@ -684,6 +697,24 @@ const handleSaveProfile = async (e: React.FormEvent) => {
 
   return () => unsubscribe();
 }, []);
+
+useEffect(() => {
+  const newInvites = receivedInvites.filter(
+    (invite) =>
+      invite.status === 'pending' && !shownInviteIds.includes(invite.id)
+  );
+
+  if (newInvites.length > 0) {
+    const firstInvite = newInvites[0];
+    const inviterName = `${firstInvite.otherProfile?.firstName || ''} ${firstInvite.otherProfile?.lastName || ''}`.trim();
+
+    showDialog(
+      `📩 Otrzymano nowe zaproszenie do współpracy od: ${inviterName || 'innego specjalisty'}.`
+    );
+
+    setShownInviteIds((prev) => [...prev, ...newInvites.map((invite) => invite.id)]);
+  }
+}, [receivedInvites, shownInviteIds, showDialog]);
 
   const [statusModalMessage, setStatusModalMessage] = useState<string | null>(null);
 
@@ -1011,6 +1042,24 @@ const handleCancelInvite = async (inviteId: string) => {
   }
 };
 
+const sendCollaborationInviteEmail = async (
+  to: string,
+  invitedByName: string
+) => {
+  try {
+    await fetch('/api/sendCollaborationInviteNotification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to,
+        invitedByName,
+      }),
+    });
+  } catch (error) {
+    console.error('Błąd wysyłki maila o zaproszeniu:', error);
+  }
+};
+
 const handleSendCollaborationInvite = async (targetSpec: CollaboratorOption) => {
   try {
     const auth = getAuth(app);
@@ -1036,27 +1085,54 @@ const handleSendCollaborationInvite = async (targetSpec: CollaboratorOption) => 
       getDocs(reverseQ),
     ]);
 
-    const alreadyExists =
-      !existingSnap.empty ||
-      !reverseSnap.empty ||
+    // ❌ jeśli już zaakceptowani → blokuj
+    const alreadyAccepted =
       acceptedCollaborators.some((c) => c.id === targetSpec.id);
 
-    if (alreadyExists) {
-      await showDialog('⚠️ Zaproszenie już istnieje albo współpraca została już potwierdzona.');
+    if (alreadyAccepted) {
+      await showDialog('⚠️ Współpraca już istnieje.');
       return;
     }
 
-    await addDoc(collection(db, 'collaborationInvites'), {
-      fromUid: user.uid,
-      toUid: targetSpec.id,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    // 🔁 jeśli istnieje zaproszenie wysłane przez Ciebie → zaktualizuj
+    if (!existingSnap.empty) {
+      const docRef = existingSnap.docs[0].ref;
+
+      await updateDoc(docRef, {
+        status: 'pending',
+        updatedAt: serverTimestamp(),
+      });
+
+      await showDialog('🔁 Zaproszenie zostało wysłane ponownie.');
+    }
+
+    // 🔁 jeśli istnieje zaproszenie od drugiej strony → też zaktualizuj
+    else if (!reverseSnap.empty) {
+      const docRef = reverseSnap.docs[0].ref;
+
+      await updateDoc(docRef, {
+        status: 'pending',
+        updatedAt: serverTimestamp(),
+      });
+
+      await showDialog('🔁 Zaproszenie zostało ponownie aktywowane.');
+    }
+
+    // 🆕 jeśli nic nie istnieje → dodaj nowe
+    else {
+      await addDoc(collection(db, 'collaborationInvites'), {
+        fromUid: user.uid,
+        toUid: targetSpec.id,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      await showDialog('✅ Zaproszenie do współpracy zostało wysłane.');
+    }
 
     setCollaboratorSearch('');
     setCollaboratorOptions([]);
-    await showDialog('✅ Zaproszenie do współpracy zostało wysłane.');
   } catch (error) {
     console.error('Błąd wysyłania zaproszenia:', error);
     await showDialog('❌ Nie udało się wysłać zaproszenia.');
@@ -1321,6 +1397,52 @@ const handleRemoveCollaboration = async (otherUid: string) => {
     style={inputStyle}
     placeholder="Wpisz imię i nazwisko specjalisty, którego chcesz zaprosić"
   />
+  {pendingInvites.length > 0 && (
+  <div style={{ marginTop: '1rem' }}>
+    <h3 style={{ color: '#0D1F40' }}>Do zaproszenia</h3>
+
+    <div style={{ display: 'grid', gap: '0.5rem' }}>
+      {pendingInvites.map((spec) => (
+        <div
+          key={spec.id}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            border: '1px solid #ddd',
+            borderRadius: '0.5rem',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: '#fff',
+          }}
+        >
+          <div>
+            <strong>{spec.firstName} {spec.lastName}</strong>
+            <div style={{ fontSize: '0.85rem', color: '#666' }}>
+              {spec.specialization?.join(', ') || 'Specjalista'}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setPendingInvites(prev => prev.filter(p => p.id !== spec.id))
+            }
+            style={{
+              backgroundColor: '#c00',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '0.3rem',
+              padding: '0.3rem 0.6rem',
+              cursor: 'pointer',
+            }}
+          >
+            Usuń
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
   {collaboratorOptions.length > 0 && (
     <div
@@ -1337,7 +1459,10 @@ const handleRemoveCollaboration = async (otherUid: string) => {
           key={spec.id}
           type="button"
           onClick={() => {
-            setPendingInvites((prev) => [...prev, spec]);
+            setPendingInvites((prev) => {
+  if (prev.some(p => p.id === spec.id)) return prev;
+  return [...prev, spec];
+});
             setCollaboratorSearch('');
             setCollaboratorOptions([]);
           }}          style={{
