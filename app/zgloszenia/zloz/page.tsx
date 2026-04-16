@@ -10,7 +10,39 @@ import locations from '@/utils/locations';
 import { contactOptions } from '@/utils/contactOptions';
 import { allSpecializations } from '@/utils/specializations';
 
+// Podkategorie problemów behawioralnych (z ankiety pełnej)
+const problemSubcategories = [
+  { id: 'karmienie', label: 'Podczas karmienia', category: 'Sytuacje codzienne' },
+  { id: 'narowy', label: 'Narowy', category: 'Sytuacje codzienne' },
+  { id: 'odejscie', label: 'Odejście od koni', category: 'Sytuacje codzienne' },
+  { id: 'uwiaz', label: 'Prowadzenie na uwiązie', category: 'Sytuacje codzienne' },
+  { id: 'vaa', label: 'Test VAA (kontakt dobrowolny)', category: 'Przed treningiem' },
+  { id: 'fha', label: 'Test FHA (kontakt wymuszony)', category: 'Przed treningiem' },
+  { id: 'czyszczenie', label: 'Podczas czyszczenia', category: 'Przed treningiem' },
+  { id: 'ubieranie', label: 'Podczas ubierania', category: 'Przed treningiem' },
+  { id: 'pysk', label: 'Zachowania pyska', category: 'Podczas treningu' },
+  { id: 'glowa', label: 'Głowa i szyja', category: 'Podczas treningu' },
+  { id: 'ogon', label: 'Ogon', category: 'Podczas treningu' },
+  { id: 'chod', label: 'Chód', category: 'Podczas treningu' },
+  { id: 'opor', label: 'Opór', category: 'Podczas treningu' },
+  { id: 'oddech', label: 'Oddech', category: 'Po treningu' },
+  { id: 'spocenie', label: 'Spocenie', category: 'Po treningu' },
+  { id: 'otoczenie', label: 'Reakcja na otoczenie', category: 'Po treningu' },
+  { id: 'interakcja', label: 'Interakcja z człowiekiem', category: 'Po treningu' },
+  { id: 'apetyt', label: 'Apetyt', category: 'Po treningu' },
+  { id: 'transport', label: 'Transport', category: 'Sytuacje dodatkowe' },
+  { id: 'kowal', label: 'Wizyta kowala', category: 'Sytuacje dodatkowe' },
+  { id: 'zawody', label: 'Stajnia domowa a zawody zewnętrzne', category: 'Sytuacje dodatkowe' },
+];
 
+// Grupowanie podkategorii według kategorii głównych
+const groupedSubcategories = problemSubcategories.reduce((acc, subcat) => {
+  if (!acc[subcat.category]) {
+    acc[subcat.category] = [];
+  }
+  acc[subcat.category].push(subcat);
+  return acc;
+}, {} as Record<string, typeof problemSubcategories>);
 
 export default function ZlozZgloszeniePage() {
   const [form, setForm] = useState({
@@ -22,19 +54,25 @@ export default function ZlozZgloszeniePage() {
     description: '',
     includeSurvey: false,
     specialization: [] as string[],
+    problemSubcategories: [] as string[], // Dodane pole dla podkategorii problemów
   });
 
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [subcategoryError, setSubcategoryError] = useState('');
 
-  const contactOptions = ['On-line', 'W stajni konia', 'W ośrodku specjalisty'];
+  const contactOptionsList = ['On-line', 'W stajni konia', 'W ośrodku specjalisty'];
 
-  const handleCheckboxChange = (value: string, group: 'specialization' | 'contactTypes') => {
+  const handleCheckboxChange = (value: string, group: 'specialization' | 'contactTypes' | 'problemSubcategories') => {
     setForm((prev) => ({
       ...prev,
       [group]: prev[group].includes(value)
         ? prev[group].filter((item: string) => item !== value)
         : [...prev[group], value],
     }));
+    // Wyczyść błąd gdy użytkownik zaznaczy coś
+    if (group === 'problemSubcategories' && subcategoryError) {
+      setSubcategoryError('');
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,67 +83,74 @@ export default function ZlozZgloszeniePage() {
 
   const { showDialog } = useDialog();
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-
-  // Uzupełnij brakujące checkboxy domyślnie wszystkimi opcjami
-  const finalSpecializations = form.specialization.length > 0 ? form.specialization : allSpecializations;
-  const finalContactTypes = form.contactTypes.length > 0 ? form.contactTypes : contactOptions;
-
-  // Walidacja pól obowiązkowych
-  if (!form.name || !form.email || !form.topic || !form.location) {
-    await showDialog('⚠️ Wypełnij wszystkie obowiązkowe pola: imię i nazwisko, e-mail, lokalizacja, temat.');
-    return;
-  }
-
-  try {
-    await addDoc(collection(db, 'zgloszenia'), {
-      name: form.name,
-      email: form.email,
-      location: form.location,
-      contactTypes: finalContactTypes,
-      topic: form.topic,
-      description: form.description,
-      specialization: finalSpecializations,
-      includeSurvey: form.includeSurvey,
-      createdAt: serverTimestamp(),
-      status: 'oczekujące',
-      
-    });
-
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      const tempUserRef = doc(db, 'users', form.email);
-      await setDoc(tempUserRef, {
-        email: form.email,
-        name: form.name,
-        role: 'tymczasowy',
-        createdAt: serverTimestamp(),
-      });
+    // Walidacja podkategorii problemów - obowiązkowa!
+    if (form.problemSubcategories.length === 0) {
+      setSubcategoryError('❌ Musisz wybrać co najmniej jedną kategorię problemu behawioralnego konia.');
+      await showDialog('❌ Musisz wybrać co najmniej jedną kategorię problemu behawioralnego konia.');
+      return;
     }
 
-    await showDialog('✅ Zgłoszenie zostało wysłane!');
-    setForm({
-      name: '',
-      email: '',
-      location: '',
-      contactTypes: [],
-      topic: '',
-      description: '',
-      includeSurvey: false,
-      specialization: [],
-    });
-    setAttachments([]);
-  } catch (err: any) {
-    console.error('❌ Błąd przy wysyłaniu zgłoszenia:', err);
-    await showDialog(`❌ Błąd: ${err.message}`);
-  }
-};
+    // Uzupełnij brakujące checkboxy domyślnie wszystkimi opcjami
+    const finalSpecializations = form.specialization.length > 0 ? form.specialization : allSpecializations;
+    const finalContactTypes = form.contactTypes.length > 0 ? form.contactTypes : contactOptionsList;
 
+    // Walidacja pól obowiązkowych
+    if (!form.name || !form.email || !form.topic || !form.location) {
+      await showDialog('⚠️ Wypełnij wszystkie obowiązkowe pola: imię i nazwisko, e-mail, lokalizacja, temat.');
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'zgloszenia'), {
+        name: form.name,
+        email: form.email,
+        location: form.location,
+        contactTypes: finalContactTypes,
+        topic: form.topic,
+        description: form.description,
+        specialization: finalSpecializations,
+        problemSubcategories: form.problemSubcategories, // Zapisanie wybranych podkategorii
+        includeSurvey: form.includeSurvey,
+        createdAt: serverTimestamp(),
+        status: 'oczekujące',
+      });
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        const tempUserRef = doc(db, 'users', form.email);
+        await setDoc(tempUserRef, {
+          email: form.email,
+          name: form.name,
+          role: 'tymczasowy',
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      await showDialog('✅ Zgłoszenie zostało wysłane!');
+      setForm({
+        name: '',
+        email: '',
+        location: '',
+        contactTypes: [],
+        topic: '',
+        description: '',
+        includeSurvey: false,
+        specialization: [],
+        problemSubcategories: [],
+      });
+      setAttachments([]);
+      setSubcategoryError('');
+    } catch (err: any) {
+      console.error('❌ Błąd przy wysyłaniu zgłoszenia:', err);
+      await showDialog(`❌ Błąd: ${err.message}`);
+    }
+  };
 
   return (
     <section style={{ maxWidth: '850px', margin: '4rem auto', padding: '2rem' }}>
@@ -117,62 +162,60 @@ const handleSubmit = async (e: React.FormEvent) => {
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Dane podstawowe */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-  <input
-    type="text"
-    placeholder="Imię i nazwisko"
-    value={form.name}
-    onChange={(e) => setForm({ ...form, name: e.target.value })}
-    required
-    style={inputStyle}
-  />
-  <small style={{ color: '#666', fontSize: '0.85rem' }}>
-    Te dane będą widoczne tylko dla zalogowanych specjalistów.
-  </small>
-</div>
-
-
+          <input
+            type="text"
+            placeholder="Imię i nazwisko"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+            style={inputStyle}
+          />
+          <small style={{ color: '#666', fontSize: '0.85rem' }}>
+            Te dane będą widoczne tylko dla zalogowanych specjalistów.
+          </small>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-  <input
-    type="email"
-    placeholder="Adres email"
-    value={form.email}
-    onChange={(e) => setForm({ ...form, email: e.target.value })}
-    required
-    style={inputStyle}
-  />
-  <small style={{ color: '#666', fontSize: '0.85rem' }}>
-    Te dane będą widoczne tylko dla zalogowanych specjalistów.
-  </small>
-</div>
+          <input
+            type="email"
+            placeholder="Adres email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+            style={inputStyle}
+          />
+          <small style={{ color: '#666', fontSize: '0.85rem' }}>
+            Te dane będą widoczne tylko dla zalogowanych specjalistów.
+          </small>
+        </div>
 
-
-
+        {/* Lokalizacja */}
         <label style={{ fontWeight: 'bold' }}>
-  Lokalizacja (województwo):
-</label>
-<select
-  value={form.location}
-  onChange={(e) => setForm({ ...form, location: e.target.value })}
-  required
-  style={{
-    ...inputStyle,
-    padding: '1rem',
-    borderRadius: '0.5rem',
-    border: '1px solid #ccc',
-    fontSize: '1rem',
-  }}
->
-  <option value="">-- Wybierz województwo --</option>
-  {locations.map((loc) => (
-    <option key={loc} value={loc}>
-      {loc}
-    </option>
-  ))}
-</select>
+          Lokalizacja (województwo):
+        </label>
+        <select
+          value={form.location}
+          onChange={(e) => setForm({ ...form, location: e.target.value })}
+          required
+          style={{
+            ...inputStyle,
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            border: '1px solid #ccc',
+            fontSize: '1rem',
+          }}
+        >
+          <option value="">-- Wybierz województwo --</option>
+          {locations.map((loc) => (
+            <option key={loc} value={loc}>
+              {loc}
+            </option>
+          ))}
+        </select>
 
-
+        {/* Temat */}
         <input
           type="text"
           placeholder="Temat zgłoszenia (np. Problemy z siodłaniem, nerwowość)"
@@ -182,10 +225,77 @@ const handleSubmit = async (e: React.FormEvent) => {
           style={inputStyle}
         />
 
+        {/* PROBLEMY BEHAWIORALNE KONIA - NOWA SEKCJA OBOWIĄZKOWA */}
+        <div style={{
+          border: subcategoryError ? '2px solid #c62828' : '1px solid #ccc',
+          borderRadius: '0.5rem',
+          padding: '1rem',
+          backgroundColor: subcategoryError ? '#ffebee' : 'transparent'
+        }}>
+          <label style={{ fontWeight: 'bold', marginBottom: '0.5rem', display: 'block' }}>
+            Problemy behawioralne konia <span style={{ color: '#c62828' }}>*</span>
+          </label>
+          <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '1rem' }}>
+            Zaznacz kategorie problemów, które występują u Twojego konia. To pomoże nam dopasować odpowiedniego specjalistę.
+          </p>
+          
+          {Object.entries(groupedSubcategories).map(([category, subcategories]) => (
+            <fieldset key={category} style={{
+              border: '1px solid #e0e0e0',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+              marginBottom: '1rem',
+              backgroundColor: '#fafafa'
+            }}>
+              <legend style={{
+                fontWeight: 'bold',
+                fontSize: '1rem',
+                color: '#0D1F40',
+                padding: '0 0.5rem'
+              }}>
+                {category}
+              </legend>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                gap: '0.75rem'
+              }}>
+                {subcategories.map((subcat) => (
+                  <label key={subcat.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem',
+                    borderRadius: '0.3rem',
+                    cursor: 'pointer',
+                    backgroundColor: form.problemSubcategories.includes(subcat.id) ? '#e8f0fe' : 'transparent'
+                  }}>
+                    <input
+                      type="checkbox"
+                      value={subcat.id}
+                      checked={form.problemSubcategories.includes(subcat.id)}
+                      onChange={() => handleCheckboxChange(subcat.id, 'problemSubcategories')}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '0.9rem' }}>{subcat.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          
+          {subcategoryError && (
+            <p style={{ color: '#c62828', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+              {subcategoryError}
+            </p>
+          )}
+        </div>
+
+        {/* Formy kontaktu */}
         <div>
           <label style={{ fontWeight: 'bold' }}>Preferowane formy kontaktu:</label>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-            {contactOptions.map((type) => (
+            {contactOptionsList.map((type) => (
               <label key={type} style={{ width: 'auto' }}>
                 <input
                   type="checkbox"
@@ -199,6 +309,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
+        {/* Specjalizacje */}
         <div>
           <label style={{ fontWeight: 'bold', marginBottom: '0.5rem', display: 'block' }}>
             Wybierz potrzebne specjalizacje:
@@ -218,6 +329,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
+        {/* Opis */}
         <textarea
           rows={5}
           placeholder="Opisz szczegółowo problem lub zachowanie konia, które Cię niepokoi..."
@@ -226,11 +338,13 @@ const handleSubmit = async (e: React.FormEvent) => {
           style={{ ...inputStyle, resize: 'vertical' }}
         />
 
+        {/* Załączniki */}
         <div>
           <label style={{ fontWeight: 'bold' }}>Załącz zdjęcia lub nagrania (opcjonalnie - widoczne tylko dla zalogowanych specjalistów):</label>
           <input type="file" multiple accept="image/*,video/*" onChange={handleFileChange} />
         </div>
 
+        {/* Ankieta */}
         <div>
           <label style={{ fontWeight: 'bold' }}>
             Czy chcesz dołączyć wypełnioną ocenę zachowania?
@@ -247,6 +361,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
+        {/* Przycisk wysyłki */}
         <button
           type="submit"
           style={{
@@ -257,6 +372,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             fontWeight: 'bold',
             fontSize: '1.1rem',
             border: 'none',
+            cursor: 'pointer',
           }}
         >
           Wyślij zgłoszenie
@@ -271,4 +387,6 @@ const inputStyle = {
   borderRadius: '0.5rem',
   border: '1px solid #ccc',
   fontSize: '1rem',
+  width: '100%',
+  boxSizing: 'border-box' as const,
 };
