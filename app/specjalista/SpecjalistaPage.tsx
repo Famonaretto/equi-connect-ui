@@ -32,6 +32,7 @@ import { useSearchParams } from 'next/navigation'
 import ChatBox from '@/components/ChatBox';
 import dynamic from "next/dynamic";
 import UmowioneKonsultacje from '@/components/UmowioneKonsultacje';
+import SpecjalistaAnkieta from '@/components/SpecjalistaAnkieta';
 
 const inputStyle: React.CSSProperties = {
   padding: '1rem',
@@ -162,6 +163,9 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
   const [confirmedForms, setConfirmedForms] = useState<string[]>([]);
   const [selectedRequestForms, setSelectedRequestForms] = useState<string[]>([]);
 
+  const [showAnkietaModal, setShowAnkietaModal] = useState(false);
+  const [ankietaFilled, setAnkietaFilled] = useState(false);
+
   const router = useRouter();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
@@ -291,6 +295,17 @@ export default function SpecjalistaPage({ activeTab, setActiveTab }: {
     } catch (err: any) {
       setError(err.message || 'Wystąpił błąd przy aktualizacji.');
     }
+  };
+
+  const checkAnkietaStatus = async () => {
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    const db = getFirestore(app);
+    const docRef = doc(db, 'specjalistaAnkiety', user.uid);
+    const docSnap = await getDoc(docRef);
+    setAnkietaFilled(docSnap.exists());
   };
 
   const menuItems = [
@@ -509,6 +524,10 @@ if (!alreadyExists) {
 
   const [kosztyDojazdu, setKosztyDojazdu] = useState("");
   const [czasTrwania, setCzasTrwania] = useState("");
+
+  useEffect(() => {
+  checkAnkietaStatus();
+}, []);
 
   useEffect(() => {
     const handleEditOferta = (event: any) => {
@@ -1203,493 +1222,523 @@ const handleRemoveCollaboration = async (otherUid: string) => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'profil':
-        return (
-          <>
-            <h2>Edytuj swój profil</h2>
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <label style={labelStyle}>Imię:</label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                style={inputStyle}
-                placeholder="Imię"
-              />
-              <label style={labelStyle}>Nazwisko:</label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                style={inputStyle}
-                placeholder="Nazwisko"
-              />
-              <fieldset>
-                <legend><strong>Obszar konsultacji stacjonarnych</strong></legend>
-                {locations.map((loc) => {
-                  const isCalaPolska = loc === "Cała Polska";
-                  return (
-                    <label key={loc} style={{ display: 'block', marginBottom: '0.5rem' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedForUI.includes(loc)}
-                        onChange={() => {
-                          if (isCalaPolska) {
-                            if (selectedForUI.includes("Cała Polska")) {
-                              setSelectedForUI([]);
-                              setWojewodztwo([]);
-                            } else {
-                              setSelectedForUI(locations);
-                              setWojewodztwo(["Cała Polska"]);
-                            }
-                          } else {
-                            let updatedUI;
-                            if (selectedForUI.includes(loc)) {
-                              updatedUI = selectedForUI.filter((w) => w !== loc);
-                            } else {
-                              updatedUI = [...selectedForUI, loc];
-                            }
-
-                            if (updatedUI.length !== locations.length) {
-                              updatedUI = updatedUI.filter((w) => w !== "Cała Polska");
-                            }
-
-                            setSelectedForUI(updatedUI);
-
-                            if (updatedUI.length === locations.length - 1 && !updatedUI.includes("Cała Polska")) {
-                              setSelectedForUI([...updatedUI, "Cała Polska"]);
-                              setWojewodztwo(["Cała Polska"]);
-                            } else {
-                              setWojewodztwo(updatedUI.includes("Cała Polska") ? ["Cała Polska"] : updatedUI);
-                            }
-                          }
-                        }}
-                      />{" "}
-                      {isCalaPolska ? <strong>{loc}</strong> : loc}
-                    </label>
-                  );
-                })}
-              </fieldset>
-
-              <label style={labelStyle}>Cena online (zł):</label>
-              <input
-                type="number"
-                value={cenaOnline}
-                onChange={(e) => setCenaOnline(e.target.value)}
-                style={inputStyle}
-                placeholder="Cena online"
-              />
-              <label style={labelStyle}>Cena stacjonarna (zł):</label>
-              <small style={{ color: '#666', marginTop: '-1rem' }}>
-                Cena nie obejmuje kosztów dojazdu.
-              </small>
-              <input
-                type="number"
-                value={cenaStacjonarna}
-                onChange={(e) => setCenaStacjonarna(e.target.value)}
-                style={inputStyle}
-                placeholder="np. 200"
-              />
-
-              <label style={labelStyle}>Koszty dojazdu przy konsultacji stacjonarnej:</label>
-              <input
-                value={kosztyDojazdu}
-                onChange={(e) => setKosztyDojazdu(e.target.value)}
-                style={inputStyle}
-                placeholder="Podaj informację, czy koszty dojazdu są wliczone w cenę, czy naliczane oddzielnie. Np.: 'Do 30 km w cenie konsultacji. Powyżej – 1 zł/km'."
-              />
-
-              <label style={labelStyle}>Czas trwania wizyty:</label>
-              <input
-                type="text"
-                value={czasTrwania}
-                onChange={(e) => setCzasTrwania(e.target.value)}
-                style={inputStyle}
-                placeholder="Np.: 60 minut"
-              />
-
-              <fieldset>
-                <legend><strong>Formy kontaktu</strong></legend>
-                {contactOptions.map((type) => (
-                  <label key={type} style={{ display: 'block' }}>
-                    <input
-                      type="checkbox"
-                      checked={contactTypes.includes(type)}
-                      onChange={() =>
-                        setContactTypes((prev) =>
-                          prev.includes(type)
-                            ? prev.filter((t) => t !== type)
-                            : [...prev, type]
-                        )
-                      }
-                    /> {type}
-                  </label>
-                ))}
-              </fieldset>
-
-              <fieldset>
-                <legend><strong>Specjalizacje</strong></legend>
-                {specializations.map((spec) => (
-                  <label key={spec} style={{ display: 'block' }}>
-                    <input
-                      type="checkbox"
-                      checked={specialization.includes(spec)}
-                      onChange={() =>
-                        setSpecialization((prev) =>
-                          prev.includes(spec)
-                            ? prev.filter((s) => s !== spec)
-                            : [...prev, spec]
-                        )
-                      }
-                    /> {spec}
-                  </label>
-                ))}
-              </fieldset>
-
-              <label style={labelStyle}>Opis / O mnie:</label>
-              <textarea
-                value={opis}
-                onChange={(e) => setOpis(e.target.value)}
-                style={textareaStyle}
-                placeholder="To miejsce na przedstawienie się w sposób, który pokaże Twoją osobowość i doświadczenie. Możesz opisać swoją filozofię pracy, wartości, które Ci przyświecają, najważniejsze osiągnięcia, a także co motywuje Cię w codziennej pracy z końmi. Dodaj elementy, które wyróżniają Cię na tle innych specjalistów – np. unikalne metody, indywidualne podejście czy sukcesy Twoich podopiecznych."
-              />
-              <label style={labelStyle}>Doświadczenie:</label>
-              <textarea
-                value={doswiadczenie}
-                onChange={(e) => setDoswiadczenie(e.target.value)}
-                style={textareaStyle}
-                placeholder="m.in.: ile lat pracujesz w tej specjalizacji, z jakimi końmi i problemami najczęściej się spotykasz, jakie metody stosujesz, jakie masz osiągnięcia."
-              />
-
-              <label style={labelStyle}>Kursy i uprawnienia:</label>
-              <textarea
-                value={kursy}
-                onChange={(e) => setKursy(e.target.value)}
-                style={textareaStyle}
-                placeholder="Wymień certyfikaty, ukończone kursy, szkolenia i warsztaty związane z Twoją specjalizacją. Podaj nazwę organizatora, temat szkolenia i rok ukończenia. Możesz uwzględnić także międzynarodowe kwalifikacje oraz licencje."
-              />
-
-              <label>Zdjęcie profilowe:
-                <input type="file" accept="image/*" onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    const file = e.target.files[0];
-                    setAvatar(file);
-                    setAvatarPreview(URL.createObjectURL(file));
-                  }
-                }} />
-              </label>
-
-{avatarPreview && (
-  <img
-    src={avatarPreview}
-    alt="Podgląd zdjęcia"
-    style={{ width: '150px', borderRadius: '0.5rem', marginTop: '1rem' }}
-  />
-)}
-
-<div style={{ marginTop: '1.5rem' }}>
-  <label style={labelStyle}>Współpraca z innymi specjalistami:</label>
-
-  <input
-    type="text"
-    value={collaboratorSearch}
-    onChange={(e) => setCollaboratorSearch(e.target.value)}
-    style={inputStyle}
-    placeholder="Wpisz imię i nazwisko specjalisty, którego chcesz zaprosić"
-  />
-  {pendingInvites.length > 0 && (
-  <div style={{ marginTop: '1rem' }}>
-    <h3 style={{ color: '#0D1F40' }}>Do zaproszenia</h3>
-
-    <div style={{ display: 'grid', gap: '0.5rem' }}>
-      {pendingInvites.map((spec) => (
-        <div
-          key={spec.id}
+case 'profil':
+  return (
+    <>
+      {/* Nagłówek z przyciskiem ankiety */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1.5rem',
+        flexWrap: 'wrap',
+        gap: '1rem',
+      }}>
+        <h2 style={{ margin: 0 }}>Edytuj swój profil</h2>
+        
+        <button
+          onClick={() => setShowAnkietaModal(true)}
           style={{
+            backgroundColor: ankietaFilled ? '#2e7d32' : '#0D1F40',
+            color: 'white',
+            padding: '0.6rem 1.2rem',
+            borderRadius: '8px',
+            border: 'none',
+            cursor: 'pointer',
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            border: '1px solid #ddd',
-            borderRadius: '0.5rem',
-            padding: '0.5rem 0.75rem',
-            backgroundColor: '#fff',
+            gap: '0.5rem',
+            fontSize: '0.9rem',
           }}
         >
-          <div>
-            <strong>{spec.firstName} {spec.lastName}</strong>
-            <div style={{ fontSize: '0.85rem', color: '#666' }}>
-              {spec.specialization?.join(', ') || 'Specjalista'}
+          📋 {ankietaFilled ? 'Edytuj ankietę' : 'Wypełnij ankietę'}
+          {ankietaFilled && (
+            <span style={{
+              backgroundColor: '#4caf50',
+              padding: '2px 8px',
+              borderRadius: '20px',
+              fontSize: '0.7rem',
+            }}>
+              ✓
+            </span>
+          )}
+        </button>
+      </div>
+
+      <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <label style={labelStyle}>Imię:</label>
+        <input
+          type="text"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          style={inputStyle}
+          placeholder="Imię"
+        />
+        <label style={labelStyle}>Nazwisko:</label>
+        <input
+          type="text"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          style={inputStyle}
+          placeholder="Nazwisko"
+        />
+        <fieldset>
+          <legend><strong>Obszar konsultacji stacjonarnych</strong></legend>
+          {locations.map((loc) => {
+            const isCalaPolska = loc === "Cała Polska";
+            return (
+              <label key={loc} style={{ display: 'block', marginBottom: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedForUI.includes(loc)}
+                  onChange={() => {
+                    if (isCalaPolska) {
+                      if (selectedForUI.includes("Cała Polska")) {
+                        setSelectedForUI([]);
+                        setWojewodztwo([]);
+                      } else {
+                        setSelectedForUI(locations);
+                        setWojewodztwo(["Cała Polska"]);
+                      }
+                    } else {
+                      let updatedUI;
+                      if (selectedForUI.includes(loc)) {
+                        updatedUI = selectedForUI.filter((w) => w !== loc);
+                      } else {
+                        updatedUI = [...selectedForUI, loc];
+                      }
+
+                      if (updatedUI.length !== locations.length) {
+                        updatedUI = updatedUI.filter((w) => w !== "Cała Polska");
+                      }
+
+                      setSelectedForUI(updatedUI);
+
+                      if (updatedUI.length === locations.length - 1 && !updatedUI.includes("Cała Polska")) {
+                        setSelectedForUI([...updatedUI, "Cała Polska"]);
+                        setWojewodztwo(["Cała Polska"]);
+                      } else {
+                        setWojewodztwo(updatedUI.includes("Cała Polska") ? ["Cała Polska"] : updatedUI);
+                      }
+                    }
+                  }}
+                />{" "}
+                {isCalaPolska ? <strong>{loc}</strong> : loc}
+              </label>
+            );
+          })}
+        </fieldset>
+
+        <label style={labelStyle}>Cena online (zł):</label>
+        <input
+          type="number"
+          value={cenaOnline}
+          onChange={(e) => setCenaOnline(e.target.value)}
+          style={inputStyle}
+          placeholder="Cena online"
+        />
+        <label style={labelStyle}>Cena stacjonarna (zł):</label>
+        <small style={{ color: '#666', marginTop: '-1rem' }}>
+          Cena nie obejmuje kosztów dojazdu.
+        </small>
+        <input
+          type="number"
+          value={cenaStacjonarna}
+          onChange={(e) => setCenaStacjonarna(e.target.value)}
+          style={inputStyle}
+          placeholder="np. 200"
+        />
+
+        <label style={labelStyle}>Koszty dojazdu przy konsultacji stacjonarnej:</label>
+        <input
+          value={kosztyDojazdu}
+          onChange={(e) => setKosztyDojazdu(e.target.value)}
+          style={inputStyle}
+          placeholder="Podaj informację, czy koszty dojazdu są wliczone w cenę, czy naliczane oddzielnie. Np.: 'Do 30 km w cenie konsultacji. Powyżej – 1 zł/km'."
+        />
+
+        <label style={labelStyle}>Czas trwania wizyty:</label>
+        <input
+          type="text"
+          value={czasTrwania}
+          onChange={(e) => setCzasTrwania(e.target.value)}
+          style={inputStyle}
+          placeholder="Np.: 60 minut"
+        />
+
+        <fieldset>
+          <legend><strong>Formy kontaktu</strong></legend>
+          {contactOptions.map((type) => (
+            <label key={type} style={{ display: 'block' }}>
+              <input
+                type="checkbox"
+                checked={contactTypes.includes(type)}
+                onChange={() =>
+                  setContactTypes((prev) =>
+                    prev.includes(type)
+                      ? prev.filter((t) => t !== type)
+                      : [...prev, type]
+                  )
+                }
+              /> {type}
+            </label>
+          ))}
+        </fieldset>
+
+        <fieldset>
+          <legend><strong>Specjalizacje</strong></legend>
+          {specializations.map((spec) => (
+            <label key={spec} style={{ display: 'block' }}>
+              <input
+                type="checkbox"
+                checked={specialization.includes(spec)}
+                onChange={() =>
+                  setSpecialization((prev) =>
+                    prev.includes(spec)
+                      ? prev.filter((s) => s !== spec)
+                      : [...prev, spec]
+                  )
+                }
+              /> {spec}
+            </label>
+          ))}
+        </fieldset>
+
+        <label style={labelStyle}>Opis / O mnie:</label>
+        <textarea
+          value={opis}
+          onChange={(e) => setOpis(e.target.value)}
+          style={textareaStyle}
+          placeholder="To miejsce na przedstawienie się w sposób, który pokaże Twoją osobowość i doświadczenie. Możesz opisać swoją filozofię pracy, wartości, które Ci przyświecają, najważniejsze osiągnięcia, a także co motywuje Cię w codziennej pracy z końmi. Dodaj elementy, które wyróżniają Cię na tle innych specjalistów – np. unikalne metody, indywidualne podejście czy sukcesy Twoich podopiecznych."
+        />
+        <label style={labelStyle}>Doświadczenie:</label>
+        <textarea
+          value={doswiadczenie}
+          onChange={(e) => setDoswiadczenie(e.target.value)}
+          style={textareaStyle}
+          placeholder="m.in.: ile lat pracujesz w tej specjalizacji, z jakimi końmi i problemami najczęściej się spotykasz, jakie metody stosujesz, jakie masz osiągnięcia."
+        />
+
+        <label style={labelStyle}>Kursy i uprawnienia:</label>
+        <textarea
+          value={kursy}
+          onChange={(e) => setKursy(e.target.value)}
+          style={textareaStyle}
+          placeholder="Wymień certyfikaty, ukończone kursy, szkolenia i warsztaty związane z Twoją specjalizacją. Podaj nazwę organizatora, temat szkolenia i rok ukończenia. Możesz uwzględnić także międzynarodowe kwalifikacje oraz licencje."
+        />
+
+        <label>Zdjęcie profilowe:
+          <input type="file" accept="image/*" onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              const file = e.target.files[0];
+              setAvatar(file);
+              setAvatarPreview(URL.createObjectURL(file));
+            }
+          }} />
+        </label>
+
+        {avatarPreview && (
+          <img
+            src={avatarPreview}
+            alt="Podgląd zdjęcia"
+            style={{ width: '150px', borderRadius: '0.5rem', marginTop: '1rem' }}
+          />
+        )}
+
+        <div style={{ marginTop: '1.5rem' }}>
+          <label style={labelStyle}>Współpraca z innymi specjalistami:</label>
+
+          <input
+            type="text"
+            value={collaboratorSearch}
+            onChange={(e) => setCollaboratorSearch(e.target.value)}
+            style={inputStyle}
+            placeholder="Wpisz imię i nazwisko specjalisty, którego chcesz zaprosić"
+          />
+          {pendingInvites.length > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              <h3 style={{ color: '#0D1F40' }}>Do zaproszenia</h3>
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {pendingInvites.map((spec) => (
+                  <div
+                    key={spec.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      border: '1px solid #ddd',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 0.75rem',
+                      backgroundColor: '#fff',
+                    }}
+                  >
+                    <div>
+                      <strong>{spec.firstName} {spec.lastName}</strong>
+                      <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                        {spec.specialization?.join(', ') || 'Specjalista'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPendingInvites(prev => prev.filter(p => p.id !== spec.id))}
+                      style={{
+                        backgroundColor: '#c00',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '0.3rem',
+                        padding: '0.3rem 0.6rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Usuń
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {collaboratorOptions.length > 0 && (
+            <div style={{
+              border: '1px solid #ccc',
+              borderRadius: '0.5rem',
+              marginTop: '0.5rem',
+              backgroundColor: '#fff',
+              overflow: 'hidden',
+            }}>
+              {collaboratorOptions.map((spec) => (
+                <button
+                  key={spec.id}
+                  type="button"
+                  onClick={() => {
+                    setPendingInvites((prev) => {
+                      if (prev.some(p => p.id === spec.id)) return prev;
+                      return [...prev, spec];
+                    });
+                    setCollaboratorSearch('');
+                    setCollaboratorOptions([]);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '0.75rem 1rem',
+                    border: 'none',
+                    borderBottom: '1px solid #eee',
+                    background: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <strong>{spec.firstName} {spec.lastName}</strong>
+                  <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                    {spec.specialization?.join(', ') || 'Specjalista'}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <h3 style={{ color: '#0D1F40' }}>Potwierdzeni współpracownicy</h3>
+            {loadingCollaborators && <p>Ładowanie...</p>}
+            {!loadingCollaborators && acceptedCollaborators.length === 0 && (
+              <p style={{ color: '#666' }}>Brak potwierdzonych współprac.</p>
+            )}
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              {acceptedCollaborators.map((spec) => (
+                <div
+                  key={spec.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                    border: '1px solid #ddd',
+                    borderRadius: '0.75rem',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: '#fafafa',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <img
+                      src={spec.avatarUrl || '/images/placeholder.jpg'}
+                      alt={`${spec.firstName || ''} ${spec.lastName || ''}`}
+                      style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+                        {spec.firstName} {spec.lastName}
+                      </div>
+                      <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                        {spec.specialization?.join(', ') || 'Specjalista'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveCollaboration(spec.id)}
+                    style={{
+                      backgroundColor: '#c00',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '0.4rem',
+                      padding: '0.5rem 0.8rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Usuń
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setPendingInvites(prev => prev.filter(p => p.id !== spec.id))
-            }
-            style={{
-              backgroundColor: '#c00',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '0.3rem',
-              padding: '0.3rem 0.6rem',
-              cursor: 'pointer',
-            }}
-          >
-            Usuń
-          </button>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
+          <div style={{ marginTop: '1.5rem' }}>
+            <h3 style={{ color: '#0D1F40' }}>Zaproszenia otrzymane</h3>
+            {receivedInvites.length === 0 ? (
+              <p style={{ color: '#666' }}>Brak oczekujących zaproszeń.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {receivedInvites.map((invite) => (
+                  <div
+                    key={invite.id}
+                    style={{
+                      border: '1px solid #ddd',
+                      borderRadius: '0.75rem',
+                      padding: '1rem',
+                      backgroundColor: '#fffdf7',
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+                      {invite.otherProfile?.firstName} {invite.otherProfile?.lastName}
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.3rem' }}>
+                      {invite.otherProfile?.specialization?.join(', ') || 'Specjalista'}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleAcceptInvite(invite.id)}
+                        style={{
+                          backgroundColor: '#0D1F40',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '0.4rem',
+                          padding: '0.5rem 0.8rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Akceptuj
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectInvite(invite.id)}
+                        style={{
+                          backgroundColor: '#ccc',
+                          color: '#333',
+                          border: 'none',
+                          borderRadius: '0.4rem',
+                          padding: '0.5rem 0.8rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Odrzuć
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-  {collaboratorOptions.length > 0 && (
-    <div
-      style={{
-        border: '1px solid #ccc',
-        borderRadius: '0.5rem',
-        marginTop: '0.5rem',
-        backgroundColor: '#fff',
-        overflow: 'hidden',
-      }}
-    >
-      {collaboratorOptions.map((spec) => (
+          <div style={{ marginTop: '1.5rem' }}>
+            <h3 style={{ color: '#0D1F40' }}>Zaproszenia wysłane</h3>
+            {sentInvites.length === 0 ? (
+              <p style={{ color: '#666' }}>Brak oczekujących wysłanych zaproszeń.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {sentInvites.map((invite) => (
+                  <div
+                    key={invite.id}
+                    style={{
+                      border: '1px solid #ddd',
+                      borderRadius: '0.75rem',
+                      padding: '1rem',
+                      backgroundColor: '#f7faff',
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
+                      {invite.otherProfile?.firstName} {invite.otherProfile?.lastName}
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.3rem' }}>
+                      {invite.otherProfile?.specialization?.join(', ') || 'Specjalista'}
+                    </div>
+                    <div style={{ marginTop: '0.7rem', color: '#777' }}>
+                      Oczekuje na potwierdzenie.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCancelInvite(invite.id)}
+                      style={{
+                        marginTop: '0.5rem',
+                        backgroundColor: '#c00',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '0.4rem',
+                        padding: '0.4rem 0.7rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Anuluj zaproszenie
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button type="submit" style={buttonStyle}>💾 Zapisz zmiany</button>
+
         <button
-          key={spec.id}
           type="button"
           onClick={() => {
-            setPendingInvites((prev) => {
-  if (prev.some(p => p.id === spec.id)) return prev;
-  return [...prev, spec];
-});
-            setCollaboratorSearch('');
-            setCollaboratorOptions([]);
-          }}          style={{
-            display: 'block',
-            width: '100%',
-            textAlign: 'left',
-            padding: '0.75rem 1rem',
+            const auth = getAuth(app);
+            const user = auth.currentUser;
+            if (user) {
+              window.open(`/specjalista/profil/${user.uid}`, '_blank');
+            }
+          }}
+          style={{
+            marginTop: '1rem',
+            backgroundColor: '#ccc',
+            color: '#333',
+            padding: '0.4rem 0.8rem',
+            borderRadius: '0.3rem',
+            fontSize: '0.9rem',
             border: 'none',
-            borderBottom: '1px solid #eee',
-            background: 'white',
             cursor: 'pointer',
           }}
         >
-          <strong>{spec.firstName} {spec.lastName}</strong>
-          <div style={{ fontSize: '0.9rem', color: '#666' }}>
-            {spec.specialization?.join(', ') || 'Specjalista'}
-          </div>
+          👁️ Podgląd publicznego profilu
         </button>
-      ))}
-    </div>
-  )}
 
-  <div style={{ marginTop: '1.5rem' }}>
-    <h3 style={{ color: '#0D1F40' }}>Potwierdzeni współpracownicy</h3>
+        {status && <p style={{ color: 'green' }}>{status}</p>}
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+      </form>
 
-    {loadingCollaborators && <p>Ładowanie...</p>}
-
-    {!loadingCollaborators && acceptedCollaborators.length === 0 && (
-      <p style={{ color: '#666' }}>Brak potwierdzonych współprac.</p>
-    )}
-
-    <div style={{ display: 'grid', gap: '0.75rem' }}>
-      {acceptedCollaborators.map((spec) => (
-        <div
-          key={spec.id}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            border: '1px solid #ddd',
-            borderRadius: '0.75rem',
-            padding: '0.75rem 1rem',
-            backgroundColor: '#fafafa',
+      {/* Modal ankiety */}
+      {showAnkietaModal && (
+        <SpecjalistaAnkieta
+          onClose={() => {
+            setShowAnkietaModal(false);
+            checkAnkietaStatus();
           }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <img
-              src={spec.avatarUrl || '/images/placeholder.jpg'}
-              alt={`${spec.firstName || ''} ${spec.lastName || ''}`}
-              style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-              }}
-            />
-            <div>
-              <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
-                {spec.firstName} {spec.lastName}
-              </div>
-              <div style={{ fontSize: '0.9rem', color: '#666' }}>
-                {spec.specialization?.join(', ') || 'Specjalista'}
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleRemoveCollaboration(spec.id)}
-            style={{
-              backgroundColor: '#c00',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '0.4rem',
-              padding: '0.5rem 0.8rem',
-              cursor: 'pointer',
-            }}
-          >
-            Usuń
-          </button>
-        </div>
-      ))}
-    </div>
-  </div>
-
-  <div style={{ marginTop: '1.5rem' }}>
-    <h3 style={{ color: '#0D1F40' }}>Zaproszenia otrzymane</h3>
-
-    {receivedInvites.length === 0 ? (
-      <p style={{ color: '#666' }}>Brak oczekujących zaproszeń.</p>
-    ) : (
-      <div style={{ display: 'grid', gap: '0.75rem' }}>
-        {receivedInvites.map((invite) => (
-          <div
-            key={invite.id}
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: '0.75rem',
-              padding: '1rem',
-              backgroundColor: '#fffdf7',
-            }}
-          >
-            <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
-              {invite.otherProfile?.firstName} {invite.otherProfile?.lastName}
-            </div>
-            <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.3rem' }}>
-              {invite.otherProfile?.specialization?.join(', ') || 'Specjalista'}
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => handleAcceptInvite(invite.id)}
-                style={{
-                  backgroundColor: '#0D1F40',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.4rem',
-                  padding: '0.5rem 0.8rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Akceptuj
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRejectInvite(invite.id)}
-                style={{
-                  backgroundColor: '#ccc',
-                  color: '#333',
-                  border: 'none',
-                  borderRadius: '0.4rem',
-                  padding: '0.5rem 0.8rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Odrzuć
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-
-  <div style={{ marginTop: '1.5rem' }}>
-    <h3 style={{ color: '#0D1F40' }}>Zaproszenia wysłane</h3>
-
-    {sentInvites.length === 0 ? (
-      <p style={{ color: '#666' }}>Brak oczekujących wysłanych zaproszeń.</p>
-    ) : (
-      <div style={{ display: 'grid', gap: '0.75rem' }}>
-        {sentInvites.map((invite) => (
-          <div
-            key={invite.id}
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: '0.75rem',
-              padding: '1rem',
-              backgroundColor: '#f7faff',
-            }}
-          >
-            <div style={{ fontWeight: 'bold', color: '#0D1F40' }}>
-              {invite.otherProfile?.firstName} {invite.otherProfile?.lastName}
-            </div>
-            <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.3rem' }}>
-              {invite.otherProfile?.specialization?.join(', ') || 'Specjalista'}
-            </div>
-<div style={{ marginTop: '0.7rem', color: '#777' }}>
-  Oczekuje na potwierdzenie.
-</div>
-
-
-
-<button
-  type="button"
-  onClick={() => handleCancelInvite(invite.id)}
-  style={{
-    marginTop: '0.5rem',
-    backgroundColor: '#c00',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '0.4rem',
-    padding: '0.4rem 0.7rem',
-    cursor: 'pointer',
-  }}
->
-  Anuluj zaproszenie
-</button>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-</div>
-
-<button type="submit" style={buttonStyle}>💾 Zapisz zmiany</button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const auth = getAuth(app);
-                  const user = auth.currentUser;
-                  if (user) {
-                    window.open(`/specjalista/profil/${user.uid}`, '_blank');
-                  }
-                }}
-                style={{
-                  marginTop: '1rem',
-                  backgroundColor: '#ccc',
-                  color: '#333',
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '0.3rem',
-                  fontSize: '0.9rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                👁️ Podgląd publicznego profilu
-              </button>
-
-              {status && <p style={{ color: 'green' }}>{status}</p>}
-              {error && <p style={{ color: 'red' }}>{error}</p>}
-            </form>
-          </>
-        );
+          onSaved={checkAnkietaStatus}
+        />
+      )}
+    </>
+  );
 
       case 'umowioneKonsultacje':
         return <UmowioneKonsultacje />;
